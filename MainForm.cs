@@ -9,6 +9,7 @@ namespace GlobalTextHelper
     {
         private NotifyIcon _tray;
         private ContextMenuStrip _menu;
+        private readonly SelectionButtonForm _selectionButton;
 
         // Clipboard listener
         [DllImport("user32.dll", SetLastError = true)]
@@ -36,8 +37,47 @@ namespace GlobalTextHelper
         private const uint WINEVENT_OUTOFCONTEXT = 0x0000;
         private const uint WINEVENT_SKIPOWNPROCESS = 0x0002;
 
+        [DllImport("user32.dll")]
+        private static extern bool GetGUIThreadInfo(uint idThread, ref GUITHREADINFO lpgui);
+
+        [DllImport("user32.dll")]
+        private static extern bool ClientToScreen(IntPtr hWnd, ref POINT lpPoint);
+
+        [DllImport("user32.dll")]
+        private static extern bool GetCursorPos(out POINT lpPoint);
+
         private IntPtr _hTextSelHook = IntPtr.Zero;
         private WinEventDelegate _textSelCallback;
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct POINT
+        {
+            public int X;
+            public int Y;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct RECT
+        {
+            public int Left;
+            public int Top;
+            public int Right;
+            public int Bottom;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct GUITHREADINFO
+        {
+            public int cbSize;
+            public uint flags;
+            public IntPtr hwndActive;
+            public IntPtr hwndFocus;
+            public IntPtr hwndCapture;
+            public IntPtr hwndMenuOwner;
+            public IntPtr hwndMoveSize;
+            public IntPtr hwndCaret;
+            public RECT rcCaret;
+        }
 
         public MainForm()
         {
@@ -60,6 +100,8 @@ namespace GlobalTextHelper
                 Text = "GlobalTextHelper",
                 ContextMenuStrip = _menu
             };
+
+            _selectionButton = new SelectionButtonForm();
         }
 
         protected override void OnShown(EventArgs e)
@@ -134,9 +176,11 @@ namespace GlobalTextHelper
             // Marshal to UI thread to interact with our forms
             BeginInvoke(new Action(() =>
             {
-                // Barebones behavior: nudge the user that a selection occurred.
-                // (You can later plug UI Automation here to read highlighted text.)
-                ShowPopup("Text selection changed (press Ctrl+C to summarize).", autohideMs: 1500);
+                var anchor = GetSelectionAnchor();
+                if (anchor.HasValue)
+                {
+                    _selectionButton.ShowNear(anchor.Value);
+                }
             }));
         }
 
@@ -163,6 +207,35 @@ namespace GlobalTextHelper
                 ny = Math.Max(screen.Top + 8, ny);
                 popup.Location = new Point(nx, ny);
             }));
+        }
+
+        private Point? GetSelectionAnchor()
+        {
+            var guiInfo = new GUITHREADINFO
+            {
+                cbSize = Marshal.SizeOf<GUITHREADINFO>()
+            };
+
+            if (GetGUIThreadInfo(0, ref guiInfo) && guiInfo.hwndCaret != IntPtr.Zero)
+            {
+                var caretPoint = new POINT
+                {
+                    X = guiInfo.rcCaret.Left,
+                    Y = guiInfo.rcCaret.Bottom
+                };
+
+                if (ClientToScreen(guiInfo.hwndCaret, ref caretPoint))
+                {
+                    return new Point(caretPoint.X, caretPoint.Y);
+                }
+            }
+
+            if (GetCursorPos(out var cursorPoint))
+            {
+                return new Point(cursorPoint.X, cursorPoint.Y);
+            }
+
+            return null;
         }
     }
 }
