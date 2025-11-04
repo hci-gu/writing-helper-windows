@@ -104,10 +104,22 @@ namespace GlobalTextHelper
             _selectionButton = new SelectionButtonForm();
         }
 
-        protected override void OnShown(EventArgs e)
+        protected override void Dispose(bool disposing)
         {
-            base.OnShown(e);
-            Hide(); // Run as a background tray app
+            if (disposing)
+            {
+                _selectionButton?.Dispose();
+
+                if (_tray != null)
+                {
+                    _tray.Visible = false;
+                    _tray.Dispose();
+                }
+
+                _menu?.Dispose();
+            }
+
+            base.Dispose(disposing);
         }
 
         protected override void OnHandleCreated(EventArgs e)
@@ -136,6 +148,17 @@ namespace GlobalTextHelper
             }
 
             base.OnHandleDestroyed(e);
+        }
+
+        protected override void SetVisibleCore(bool value)
+        {
+            if (!IsHandleCreated)
+            {
+                CreateHandle();
+            }
+
+            // Keep the window hidden while retaining a handle for message pumping.
+            base.SetVisibleCore(false);
         }
 
         protected override void WndProc(ref Message m)
