@@ -22,34 +22,41 @@ namespace GlobalTextHelper
                     return;
                 }
 
-                try
+                string? failureReason = null;
+
+                if (!TryInitializeWith(() => Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                        out failureReason))
                 {
-                    var appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-                    if (string.IsNullOrEmpty(appData))
+                    if (!string.IsNullOrWhiteSpace(failureReason))
                     {
-                        throw new InvalidOperationException("LocalApplicationData folder path is unavailable.");
+                        WriteFallback($"Primary log initialization failed: {failureReason}");
                     }
 
-                    var logDirectory = Path.Combine(appData, "WritingHelper", "logs");
-                    Directory.CreateDirectory(logDirectory);
-
-                    _logFilePath = Path.Combine(logDirectory, "writing-helper.log");
-                    var fileStream = new FileStream(_logFilePath, FileMode.Append, FileAccess.Write, FileShare.Read);
-                    _writer = new StreamWriter(fileStream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false))
+                    if (!TryInitializeWith(() => AppContext.BaseDirectory, out failureReason))
                     {
-                        AutoFlush = true
-                    };
+                        _initializationFailed = true;
+                        _writer = null;
+                        _logFilePath = null;
 
-                    _initialized = true;
-                    WriteLineInternal("Logger initialized.");
-                    WriteLineInternal($"Logging to '{_logFilePath}'.");
+                        if (!string.IsNullOrWhiteSpace(failureReason))
+                        {
+                            WriteFallback($"Fallback log initialization failed: {failureReason}");
+                        }
+                        else
+                        {
+                            WriteFallback("Fallback log initialization failed: unknown error.");
+                        }
+
+                        WriteFallback("Logging will be limited to console/debug output.");
+                        return;
+                    }
                 }
-                catch (Exception ex)
+
+                _initialized = true;
+                WriteLineInternal("Logger initialized.");
+                if (!string.IsNullOrEmpty(_logFilePath))
                 {
-                    _initializationFailed = true;
-                    _writer = null;
-                    _logFilePath = null;
-                    WriteFallback($"Failed to initialize logger: {ex}");
+                    WriteLineInternal($"Logging to '{_logFilePath}'.");
                 }
             }
         }
@@ -82,6 +89,40 @@ namespace GlobalTextHelper
                 _writer?.Dispose();
                 _writer = null;
                 _initialized = false;
+            }
+        }
+
+        private static bool TryInitializeWith(Func<string?> rootPathProvider, out string? failureReason)
+        {
+            failureReason = null;
+
+            try
+            {
+                var rootPath = rootPathProvider();
+                if (string.IsNullOrWhiteSpace(rootPath))
+                {
+                    failureReason = "Root path was empty.";
+                    return false;
+                }
+
+                var logDirectory = Path.Combine(rootPath, "WritingHelper", "logs");
+                Directory.CreateDirectory(logDirectory);
+
+                _logFilePath = Path.Combine(logDirectory, "writing-helper.log");
+                var fileStream = new FileStream(_logFilePath, FileMode.Append, FileAccess.Write, FileShare.Read);
+                _writer = new StreamWriter(fileStream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false))
+                {
+                    AutoFlush = true
+                };
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _writer = null;
+                _logFilePath = null;
+                failureReason = ex.ToString();
+                return false;
             }
         }
 

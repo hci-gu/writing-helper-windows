@@ -11,6 +11,7 @@ namespace GlobalTextHelper
         private readonly NotifyIcon _tray;
         private readonly ContextMenuStrip _menu;
         private readonly SelectionButtonForm _selectionButton;
+        private readonly MessageLoopForm _messageLoopForm;
         private readonly HiddenMessageWindow _messageWindow;
         private readonly SynchronizationContext _syncContext;
 
@@ -31,6 +32,11 @@ namespace GlobalTextHelper
             _syncContext = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
 
             _selectionButton = new SelectionButtonForm();
+
+            _messageLoopForm = new MessageLoopForm();
+            MainForm = _messageLoopForm;
+            _messageLoopForm.CreateControl();
+            AppLogger.Log("Hidden message loop form created.");
 
             _menu = new ContextMenuStrip();
             _menu.Items.Add("Exit", null, (_, _) => ExitThread());
@@ -102,6 +108,16 @@ namespace GlobalTextHelper
 
             _menu.Dispose();
             AppLogger.Log("Tray menu disposed.");
+
+            if (_messageLoopForm != null)
+            {
+                if (!_messageLoopForm.IsDisposed)
+                {
+                    _messageLoopForm.ForceClose();
+                }
+                _messageLoopForm.Dispose();
+                AppLogger.Log("Hidden message loop form disposed.");
+            }
 
             base.ExitThreadCore();
         }
@@ -340,6 +356,44 @@ namespace GlobalTextHelper
                     DestroyHandle();
                     AppLogger.Log("Hidden message window handle destroyed.");
                 }
+            }
+        }
+
+        private sealed class MessageLoopForm : Form
+        {
+            private bool _allowClose;
+
+            public MessageLoopForm()
+            {
+                ShowInTaskbar = false;
+                Opacity = 0;
+                Size = new Size(0, 0);
+                FormBorderStyle = FormBorderStyle.FixedToolWindow;
+                StartPosition = FormStartPosition.Manual;
+                Location = new Point(-32000, -32000);
+            }
+
+            protected override void SetVisibleCore(bool value)
+            {
+                base.SetVisibleCore(false);
+            }
+
+            protected override bool ShowWithoutActivation => true;
+
+            protected override void OnFormClosing(FormClosingEventArgs e)
+            {
+                if (!_allowClose)
+                {
+                    e.Cancel = true;
+                }
+
+                base.OnFormClosing(e);
+            }
+
+            public void ForceClose()
+            {
+                _allowClose = true;
+                Close();
             }
         }
     }
