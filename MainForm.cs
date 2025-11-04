@@ -1,5 +1,4 @@
 using System;
-using System.Diagnostics;
 using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -27,6 +26,8 @@ namespace GlobalTextHelper
 
         public TrayApplicationContext()
         {
+            AppLogger.Log("Initializing tray application context.");
+
             _syncContext = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
 
             _selectionButton = new SelectionButtonForm();
@@ -41,8 +42,10 @@ namespace GlobalTextHelper
                 Text = "GlobalTextHelper",
                 ContextMenuStrip = _menu
             };
+            AppLogger.Log("Tray icon created and made visible.");
 
             _messageWindow = new HiddenMessageWindow(OnClipboardUpdated);
+            AppLogger.Log("Hidden message window created for clipboard monitoring.");
 
             _textSelectionCallback = OnWinEvent;
             _textSelectionHook = SetWinEventHook(
@@ -56,36 +59,49 @@ namespace GlobalTextHelper
 
             if (_textSelectionHook == IntPtr.Zero)
             {
-                Debug.WriteLine("Failed to install text selection hook. Selection button will be disabled.");
+                AppLogger.Log("Failed to install text selection hook. Selection button will be disabled.");
+            }
+            else
+            {
+                AppLogger.Log($"Text selection hook installed: 0x{_textSelectionHook.ToInt64():X}");
             }
         }
 
         protected override void ExitThreadCore()
         {
+            AppLogger.Log("ExitThreadCore invoked.");
+
             if (_disposed)
             {
+                AppLogger.Log("Application context already disposed; delegating to base implementation.");
                 base.ExitThreadCore();
                 return;
             }
 
             _disposed = true;
+            AppLogger.Log("Disposing tray application context resources.");
 
             if (_textSelectionHook != IntPtr.Zero)
             {
                 UnhookWinEvent(_textSelectionHook);
+                AppLogger.Log("Text selection hook removed.");
                 _textSelectionHook = IntPtr.Zero;
             }
 
             _messageWindow.Dispose();
+            AppLogger.Log("Hidden message window disposed.");
             _selectionButton.Dispose();
+            AppLogger.Log("Selection button disposed.");
 
             if (_tray != null)
             {
                 _tray.Visible = false;
                 _tray.Dispose();
+                AppLogger.Log("Tray icon disposed.");
             }
 
             _menu.Dispose();
+            AppLogger.Log("Tray menu disposed.");
 
             base.ExitThreadCore();
         }
@@ -94,19 +110,30 @@ namespace GlobalTextHelper
         {
             try
             {
+                AppLogger.Log("Clipboard update detected.");
                 if (Clipboard.ContainsText())
                 {
                     string text = Clipboard.GetText();
                     if (!string.IsNullOrWhiteSpace(text))
                     {
+                        AppLogger.Log($"Clipboard text length: {text.Length}");
                         string summary = Summarizer.Summarize(text, 200);
+                        AppLogger.Log($"Summary generated with length {summary.Length}.");
                         ShowPopup(summary);
                     }
+                    else
+                    {
+                        AppLogger.Log("Clipboard text empty or whitespace; ignoring.");
+                    }
+                }
+                else
+                {
+                    AppLogger.Log("Clipboard does not contain text; ignoring.");
                 }
             }
             catch (Exception ex)
             {
-                Debug.WriteLine("Clipboard read error: " + ex.Message);
+                AppLogger.LogError("Clipboard read error", ex);
             }
         }
 
@@ -115,6 +142,7 @@ namespace GlobalTextHelper
         {
             if (eventType != EVENT_OBJECT_TEXTSELECTIONCHANGED)
             {
+                AppLogger.Log($"Received unexpected WinEvent: 0x{eventType:X}");
                 return;
             }
 
@@ -123,7 +151,13 @@ namespace GlobalTextHelper
                 var anchor = GetSelectionAnchor();
                 if (anchor.HasValue)
                 {
+                    AppLogger.Log($"Showing selection button near {anchor.Value}.");
                     _selectionButton.ShowNear(anchor.Value);
+                }
+                else
+                {
+                    AppLogger.Log("Selection anchor not found; hiding selection button.");
+                    _selectionButton.Hide();
                 }
             }, null);
         }
@@ -132,6 +166,7 @@ namespace GlobalTextHelper
         {
             if (string.IsNullOrWhiteSpace(text))
             {
+                AppLogger.Log("Popup requested with empty text; skipping display.");
                 return;
             }
 
@@ -146,6 +181,7 @@ namespace GlobalTextHelper
 
             popup.Location = new Point(x, y);
             popup.Show();
+            AppLogger.Log($"Popup shown at initial location ({x}, {y}).");
 
             popup.BeginInvoke(new Action(() =>
             {
@@ -158,6 +194,7 @@ namespace GlobalTextHelper
                 ny = Math.Max(screen.Top + 8, ny);
 
                 popup.Location = new Point(nx, ny);
+                AppLogger.Log($"Popup repositioned to ({nx}, {ny}).");
             }));
         }
 
@@ -178,15 +215,22 @@ namespace GlobalTextHelper
 
                 if (ClientToScreen(guiInfo.hwndCaret, ref caretPoint))
                 {
+                    AppLogger.Log($"Caret anchor at ({caretPoint.X}, {caretPoint.Y}).");
                     return new Point(caretPoint.X, caretPoint.Y);
+                }
+                else
+                {
+                    AppLogger.Log("ClientToScreen failed for caret position.");
                 }
             }
 
             if (GetCursorPos(out var cursorPoint))
             {
+                AppLogger.Log($"Using cursor position ({cursorPoint.X}, {cursorPoint.Y}) as anchor.");
                 return new Point(cursorPoint.X, cursorPoint.Y);
             }
 
+            AppLogger.Log("Unable to determine selection anchor.");
             return null;
         }
 
@@ -263,7 +307,11 @@ namespace GlobalTextHelper
                 _listening = AddClipboardFormatListener(Handle);
                 if (!_listening)
                 {
-                    Debug.WriteLine("Failed to register clipboard listener. Clipboard monitoring disabled.");
+                    AppLogger.Log("Failed to register clipboard listener. Clipboard monitoring disabled.");
+                }
+                else
+                {
+                    AppLogger.Log("Clipboard listener registered successfully.");
                 }
             }
 
@@ -271,6 +319,7 @@ namespace GlobalTextHelper
             {
                 if (m.Msg == WM_CLIPBOARDUPDATE)
                 {
+                    AppLogger.Log("WM_CLIPBOARDUPDATE received.");
                     _clipboardUpdated();
                 }
 
@@ -285,9 +334,11 @@ namespace GlobalTextHelper
                     {
                         RemoveClipboardFormatListener(Handle);
                         _listening = false;
+                        AppLogger.Log("Clipboard listener removed.");
                     }
 
                     DestroyHandle();
+                    AppLogger.Log("Hidden message window handle destroyed.");
                 }
             }
         }
