@@ -114,6 +114,11 @@ namespace GlobalTextHelper
                 return;
             }
 
+            if (!IsHandleCreated || !_editor.IsHandleCreated)
+            {
+                return;
+            }
+
             var selectionBounds = CalculateSelectionBoundsInScreen();
             if (selectionBounds is null)
             {
@@ -142,6 +147,11 @@ namespace GlobalTextHelper
 
         private void UpdateOverlayPosition()
         {
+            if (!IsHandleCreated || !_editor.IsHandleCreated)
+            {
+                return;
+            }
+
             var selectionBounds = CalculateSelectionBoundsInScreen();
             if (selectionBounds is null)
             {
@@ -191,6 +201,11 @@ namespace GlobalTextHelper
 
         private Rectangle? CalculateSelectionBoundsInScreen()
         {
+            if (!_editor.IsHandleCreated)
+            {
+                return null;
+            }
+
             if (_editor.SelectionLength <= 0)
             {
                 return null;
