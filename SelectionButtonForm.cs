@@ -7,7 +7,7 @@ namespace GlobalTextHelper
     public class SelectionButtonForm : Form
     {
         private readonly Button _actionButton;
-        private readonly Timer _autoHideTimer;
+        private readonly System.Windows.Forms.Timer _autoHideTimer;
 
         public SelectionButtonForm()
         {
@@ -34,7 +34,7 @@ namespace GlobalTextHelper
                 Hide();
             };
 
-            _autoHideTimer = new Timer { Interval = 4000 };
+            _autoHideTimer = new System.Windows.Forms.Timer { Interval = 4000 };
             _autoHideTimer.Tick += (s, e) => Hide();
         }
 
