@@ -1,168 +1,246 @@
 using System;
 using System.Drawing;
-using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 namespace GlobalTextHelper
 {
     public class MainForm : Form
     {
-        private NotifyIcon _tray;
-        private ContextMenuStrip _menu;
+        private const int OverlayMargin = 8;
 
-        // Clipboard listener
-        [DllImport("user32.dll", SetLastError = true)]
-        private static extern bool AddClipboardFormatListener(IntPtr hwnd);
-
-        [DllImport("user32.dll", SetLastError = true)]
-        private static extern bool RemoveClipboardFormatListener(IntPtr hwnd);
-
-        private const int WM_CLIPBOARDUPDATE = 0x031D;
-
-        // WinEvent hook (text selection changed)
-        private delegate void WinEventDelegate(
-            IntPtr hWinEventHook, uint eventType, IntPtr hwnd,
-            int idObject, int idChild, uint dwEventThread, uint dwmsEventTime);
-
-        [DllImport("user32.dll")]
-        private static extern IntPtr SetWinEventHook(
-            uint eventMin, uint eventMax, IntPtr hmodWinEventProc,
-            WinEventDelegate lpfnWinEventProc, uint idProcess, uint idThread, uint dwFlags);
-
-        [DllImport("user32.dll")]
-        private static extern bool UnhookWinEvent(IntPtr hWinEventHook);
-
-        private const uint EVENT_OBJECT_TEXTSELECTIONCHANGED = 0x8014;
-        private const uint WINEVENT_OUTOFCONTEXT = 0x0000;
-        private const uint WINEVENT_SKIPOWNPROCESS = 0x0002;
-
-        private IntPtr _hTextSelHook = IntPtr.Zero;
-        private WinEventDelegate _textSelCallback;
+        private readonly RichTextBox _editor;
+        private readonly SelectionOverlayForm _overlayForm;
+        private Rectangle? _currentSelectionBoundsScreen;
 
         public MainForm()
         {
-            Text = "GlobalTextHelper";
-            // Keep an invisible background window to receive Windows messages
-            ShowInTaskbar = false;
-            WindowState = FormWindowState.Minimized;
-            StartPosition = FormStartPosition.Manual;
-            Location = new Point(-2000, -2000);      // put it off-screen
-            FormBorderStyle = FormBorderStyle.FixedToolWindow;
+            Text = "Writing Helper";
+            MinimumSize = new Size(640, 480);
+            StartPosition = FormStartPosition.CenterScreen;
 
-            // Tray icon + menu
-            _menu = new ContextMenuStrip();
-            _menu.Items.Add("Exit", null, (s, e) => Application.Exit());
-
-            _tray = new NotifyIcon
+            _editor = new RichTextBox
             {
-                Icon = SystemIcons.Application,
-                Visible = true,
-                Text = "GlobalTextHelper",
-                ContextMenuStrip = _menu
+                Dock = DockStyle.Fill,
+                AcceptsTab = true,
+                HideSelection = false,
+                BorderStyle = BorderStyle.None,
+                Font = new Font("Segoe UI", 11F),
+                BackColor = Color.White,
+                ForeColor = Color.FromArgb(32, 32, 32)
             };
+
+            Controls.Add(_editor);
+
+            _overlayForm = new SelectionOverlayForm();
+            _overlayForm.HighlightRequested += OnHighlightRequested;
+            _overlayForm.CopyRequested += OnCopyRequested;
+
+            _editor.SelectionChanged += OnEditorSelectionChanged;
+            _editor.VScroll += OnEditorScrolled;
+            _editor.HScroll += OnEditorScrolled;
+            _editor.TextChanged += OnEditorTextChanged;
+            _editor.Resize += OnEditorLayoutChanged;
+
+            Move += OnHostMovedOrResized;
+            Resize += OnHostMovedOrResized;
+            ClientSizeChanged += OnHostMovedOrResized;
         }
 
-        protected override void OnShown(EventArgs e)
+        internal RichTextBox Editor => _editor;
+        internal bool SelectionOverlayVisible => _overlayForm.Visible;
+        internal SelectionOverlayForm OverlayForm => _overlayForm;
+        internal Rectangle? CurrentSelectionBounds => _currentSelectionBoundsScreen;
+
+        private void OnEditorSelectionChanged(object? sender, EventArgs e)
         {
-            base.OnShown(e);
-            Hide(); // Run as a background tray app
+            UpdateOverlayVisibility();
         }
 
-        protected override void OnHandleCreated(EventArgs e)
+        private void OnEditorScrolled(object? sender, EventArgs e)
         {
-            base.OnHandleCreated(e);
-
-            // Start listening for clipboard changes
-            AddClipboardFormatListener(Handle);
-
-            // Hook global text-selection events (out-of-process, no injection)
-            _textSelCallback = OnWinEvent;
-            _hTextSelHook = SetWinEventHook(
-                EVENT_OBJECT_TEXTSELECTIONCHANGED, EVENT_OBJECT_TEXTSELECTIONCHANGED,
-                IntPtr.Zero, _textSelCallback, 0, 0,
-                WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
-        }
-
-        protected override void OnHandleDestroyed(EventArgs e)
-        {
-            RemoveClipboardFormatListener(Handle);
-
-            if (_hTextSelHook != IntPtr.Zero)
+            if (_overlayForm.Visible)
             {
-                UnhookWinEvent(_hTextSelHook);
-                _hTextSelHook = IntPtr.Zero;
+                UpdateOverlayPosition();
+            }
+        }
+
+        private void OnEditorTextChanged(object? sender, EventArgs e)
+        {
+            if (_overlayForm.Visible)
+            {
+                UpdateOverlayPosition();
+            }
+        }
+
+        private void OnEditorLayoutChanged(object? sender, EventArgs e)
+        {
+            if (_overlayForm.Visible)
+            {
+                UpdateOverlayPosition();
+            }
+        }
+
+        private void OnHostMovedOrResized(object? sender, EventArgs e)
+        {
+            if (_overlayForm.Visible)
+            {
+                UpdateOverlayPosition();
+            }
+        }
+
+        private void OnHighlightRequested(object? sender, EventArgs e)
+        {
+            string selectedText = _editor.SelectedText;
+            Console.WriteLine($"Highlight button clicked – selected text: {selectedText}");
+        }
+
+        private void OnCopyRequested(object? sender, EventArgs e)
+        {
+            string selectedText = _editor.SelectedText;
+            Console.WriteLine($"Copy button clicked – selected text: {selectedText}");
+        }
+
+        protected override void OnDeactivate(EventArgs e)
+        {
+            base.OnDeactivate(e);
+            HideOverlay();
+        }
+
+        private void UpdateOverlayVisibility()
+        {
+            if (_editor.SelectionLength <= 0)
+            {
+                HideOverlay();
+                return;
             }
 
-            base.OnHandleDestroyed(e);
-        }
-
-        protected override void WndProc(ref Message m)
-        {
-            if (m.Msg == WM_CLIPBOARDUPDATE)
+            var selectionBounds = CalculateSelectionBoundsInScreen();
+            if (selectionBounds is null)
             {
-                OnClipboardUpdated();
+                HideOverlay();
+                return;
             }
-            base.WndProc(ref m);
+
+            _currentSelectionBoundsScreen = selectionBounds;
+
+            if (!_overlayForm.Visible)
+            {
+                _overlayForm.Show(this);
+            }
+
+            PositionOverlay(selectionBounds.Value);
         }
 
-        private void OnClipboardUpdated()
+        private void HideOverlay()
         {
-            try
+            _currentSelectionBoundsScreen = null;
+            if (_overlayForm.Visible)
             {
-                if (Clipboard.ContainsText())
+                _overlayForm.Hide();
+            }
+        }
+
+        private void UpdateOverlayPosition()
+        {
+            var selectionBounds = CalculateSelectionBoundsInScreen();
+            if (selectionBounds is null)
+            {
+                HideOverlay();
+                return;
+            }
+
+            _currentSelectionBoundsScreen = selectionBounds;
+            PositionOverlay(selectionBounds.Value);
+        }
+
+        private void PositionOverlay(Rectangle selectionBounds)
+        {
+            Size overlaySize = _overlayForm.Size;
+            if (overlaySize.Width == 0 || overlaySize.Height == 0)
+            {
+                overlaySize = _overlayForm.GetPreferredSize(Size.Empty);
+            }
+
+            Rectangle workingArea = Screen.FromControl(this).WorkingArea;
+
+            int x = selectionBounds.Left;
+            int y = selectionBounds.Bottom + OverlayMargin;
+
+            if (x + overlaySize.Width > workingArea.Right)
+            {
+                x = workingArea.Right - overlaySize.Width - OverlayMargin;
+            }
+
+            if (x < workingArea.Left)
+            {
+                x = workingArea.Left + OverlayMargin;
+            }
+
+            if (y + overlaySize.Height > workingArea.Bottom)
+            {
+                y = selectionBounds.Top - overlaySize.Height - OverlayMargin;
+                if (y < workingArea.Top)
                 {
-                    string text = Clipboard.GetText();
-                    if (!string.IsNullOrWhiteSpace(text))
-                    {
-                        string summary = Summarizer.Summarize(text, 200);
-                        ShowPopup(summary);
-                    }
+                    y = workingArea.Top + OverlayMargin;
                 }
             }
-            catch (Exception ex)
+
+            _overlayForm.Location = new Point(x, y);
+            _overlayForm.BringToFront();
+        }
+
+        private Rectangle? CalculateSelectionBoundsInScreen()
+        {
+            if (_editor.SelectionLength <= 0)
             {
-                // Clipboard can be momentarily busy or not text; ignore quietly.
-                System.Diagnostics.Debug.WriteLine("Clipboard read error: " + ex.Message);
+                return null;
             }
+
+            int start = _editor.SelectionStart;
+            int length = _editor.SelectionLength;
+            int end = start + length;
+
+            Point startPoint = _editor.GetPositionFromCharIndex(start);
+            Point endPoint;
+            if (length == 0)
+            {
+                endPoint = startPoint;
+            }
+            else if (end < _editor.TextLength)
+            {
+                endPoint = _editor.GetPositionFromCharIndex(end);
+            }
+            else
+            {
+                endPoint = _editor.GetPositionFromCharIndex(Math.Max(0, end - 1));
+                Size charSize = TextRenderer.MeasureText(" ", _editor.Font);
+                endPoint = new Point(endPoint.X + charSize.Width, endPoint.Y);
+            }
+
+            int lineHeight = TextRenderer.MeasureText("Ag", _editor.Font).Height;
+
+            int left = Math.Min(startPoint.X, endPoint.X);
+            int right = Math.Max(startPoint.X, endPoint.X);
+            int top = Math.Min(startPoint.Y, endPoint.Y);
+            int bottom = Math.Max(startPoint.Y, endPoint.Y) + lineHeight;
+
+            int width = Math.Max(1, right - left);
+            int height = Math.Max(lineHeight, bottom - top);
+
+            Rectangle clientRect = new Rectangle(left, top, width, height);
+            Point screenTopLeft = _editor.PointToScreen(clientRect.Location);
+
+            return new Rectangle(screenTopLeft, clientRect.Size);
         }
 
-        private void OnWinEvent(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime)
+        internal void ForceOverlayRefreshForTest()
         {
-            if (eventType != EVENT_OBJECT_TEXTSELECTIONCHANGED)
-                return;
-
-            // Marshal to UI thread to interact with our forms
-            BeginInvoke(new Action(() =>
-            {
-                // Barebones behavior: nudge the user that a selection occurred.
-                // (You can later plug UI Automation here to read highlighted text.)
-                ShowPopup("Text selection changed (press Ctrl+C to summarize).", autohideMs: 1500);
-            }));
+            UpdateOverlayVisibility();
         }
 
-        private void ShowPopup(string text, int autohideMs = 3000)
+        internal void ForceOverlayRepositionForTest()
         {
-            var popup = new PopupForm(text, autohideMs);
-            var cursor = Cursor.Position;
-
-            int x = cursor.X + 12;
-            int y = cursor.Y + 12;
-
-            popup.StartPosition = FormStartPosition.Manual;
-            popup.Location = new Point(x, y);
-            popup.Show();
-
-            // Keep the popup on-screen if near edges
-            popup.BeginInvoke(new Action(() =>
-            {
-                var screen = Screen.FromPoint(cursor).WorkingArea;
-                var size = popup.Size;
-                int nx = Math.Min(x, screen.Right - size.Width - 8);
-                int ny = Math.Min(y, screen.Bottom - size.Height - 8);
-                nx = Math.Max(screen.Left + 8, nx);
-                ny = Math.Max(screen.Top + 8, ny);
-                popup.Location = new Point(nx, ny);
-            }));
+            UpdateOverlayPosition();
         }
     }
 }
