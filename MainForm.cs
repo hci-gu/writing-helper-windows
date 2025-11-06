@@ -1,6 +1,7 @@
 using System;
 using System.Drawing;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace GlobalTextHelper
@@ -9,6 +10,9 @@ namespace GlobalTextHelper
     {
         private NotifyIcon _tray;
         private ContextMenuStrip _menu;
+        private readonly TextSelectionPromptBuilder _promptBuilder = new();
+        private OpenAiChatClient? _openAiClient;
+        private IntPtr _lastFocusedWindow = IntPtr.Zero;
 
         // Clipboard listener
         [DllImport("user32.dll", SetLastError = true)]
@@ -18,6 +22,12 @@ namespace GlobalTextHelper
         private static extern bool RemoveClipboardFormatListener(IntPtr hwnd);
 
         private const int WM_CLIPBOARDUPDATE = 0x031D;
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetForegroundWindow();
+
+        [DllImport("user32.dll")]
+        private static extern bool SetForegroundWindow(IntPtr hWnd);
 
         // WinEvent hook (text selection changed)
         private delegate void WinEventDelegate(
@@ -111,11 +121,12 @@ namespace GlobalTextHelper
             {
                 if (Clipboard.ContainsText())
                 {
+                    _lastFocusedWindow = GetForegroundWindow();
                     string text = Clipboard.GetText();
                     if (!string.IsNullOrWhiteSpace(text))
                     {
                         string summary = Summarizer.Summarize(text, 200);
-                        ShowPopup(summary);
+                        ShowPopup(summary, autohideMs: 3000, simplifyHandler: popup => SimplifySelectionAsync(popup, text));
                     }
                 }
             }
@@ -140,9 +151,14 @@ namespace GlobalTextHelper
             }));
         }
 
-        private void ShowPopup(string text, int autohideMs = 3000)
+        private void ShowPopup(string text, int autohideMs = 3000, Func<PopupForm, Task>? simplifyHandler = null)
         {
-            var popup = new PopupForm(text, autohideMs);
+            bool showSimplifyButton = simplifyHandler is not null;
+            var popup = new PopupForm(text, autohideMs, showSimplifyButton);
+            if (simplifyHandler is not null)
+            {
+                popup.SimplifyRequested += simplifyHandler;
+            }
             var cursor = Cursor.Position;
 
             int x = cursor.X + 12;
@@ -163,6 +179,96 @@ namespace GlobalTextHelper
                 ny = Math.Max(screen.Top + 8, ny);
                 popup.Location = new Point(nx, ny);
             }));
+        }
+
+        private async Task SimplifySelectionAsync(PopupForm popup, string originalText)
+        {
+            try
+            {
+                var client = GetOrCreateOpenAiClient();
+                string simplified = await _promptBuilder.SimplifySelectionAsync(client, originalText);
+
+                if (string.IsNullOrWhiteSpace(simplified))
+                {
+                    popup.UpdateMessage("The assistant returned an empty response.");
+                    popup.RestartAutoClose(3000);
+                    return;
+                }
+
+                ReplaceSelectionWithText(originalText, simplified);
+                popup.UpdateMessage("Simplified text inserted.");
+                popup.RestartAutoClose(1500);
+            }
+            catch (Exception ex)
+            {
+                popup.UpdateMessage($"Unable to simplify: {ex.Message}");
+                popup.RestartAutoClose(4000);
+            }
+        }
+
+        private OpenAiChatClient GetOrCreateOpenAiClient()
+        {
+            return _openAiClient ??= OpenAiChatClient.FromEnvironment();
+        }
+
+        private void ReplaceSelectionWithText(string originalText, string replacement)
+        {
+            if (string.IsNullOrEmpty(replacement))
+                throw new InvalidOperationException("Replacement text cannot be empty.");
+
+            IDataObject? clipboardData = null;
+            try
+            {
+                clipboardData = Clipboard.GetDataObject();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("Clipboard snapshot failed: " + ex.Message);
+            }
+
+            try
+            {
+                Clipboard.SetText(replacement);
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException("Unable to set clipboard text: " + ex.Message);
+            }
+
+            if (_lastFocusedWindow != IntPtr.Zero)
+            {
+                SetForegroundWindow(_lastFocusedWindow);
+            }
+
+            SendKeys.SendWait("^v");
+
+            try
+            {
+                if (clipboardData is not null)
+                {
+                    Clipboard.SetDataObject(clipboardData);
+                }
+                else if (!string.IsNullOrEmpty(originalText))
+                {
+                    Clipboard.SetText(originalText);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("Clipboard restore failed: " + ex.Message);
+            }
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _openAiClient?.Dispose();
+                _tray?.Dispose();
+                _menu?.Dispose();
+            }
+
+            base.Dispose(disposing);
         }
     }
 }
