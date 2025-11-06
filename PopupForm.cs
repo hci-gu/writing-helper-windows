@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -10,10 +11,14 @@ namespace GlobalTextHelper
         private readonly Timer _timer;
         private readonly Label _label;
         private readonly Button? _simplifyButton;
+        private readonly Button? _rewriteButton;
+        private readonly ContextMenuStrip? _rewriteMenu;
+        private readonly Dictionary<string, string>? _rewriteStyleDisplayNames;
 
         public event Func<PopupForm, Task>? SimplifyRequested;
+        public event Func<PopupForm, string, Task>? RewriteRequested;
 
-        public PopupForm(string text, int autohideMs, bool showSimplifyButton = false)
+        public PopupForm(string text, int autohideMs, bool showSimplifyButton = false, bool showRewriteButton = false)
         {
             FormBorderStyle = FormBorderStyle.None;
             StartPosition = FormStartPosition.Manual;
@@ -29,7 +34,7 @@ namespace GlobalTextHelper
                 AutoSizeMode = AutoSizeMode.GrowAndShrink,
                 Dock = DockStyle.Fill,
                 ColumnCount = 1,
-                RowCount = showSimplifyButton ? 2 : 1,
+                RowCount = (showSimplifyButton || showRewriteButton) ? 2 : 1,
             };
 
             _label = new Label
@@ -41,16 +46,75 @@ namespace GlobalTextHelper
 
             layout.Controls.Add(_label, 0, 0);
 
-            if (showSimplifyButton)
+            if (showSimplifyButton || showRewriteButton)
             {
-                _simplifyButton = new Button
+                var buttonPanel = new FlowLayoutPanel
                 {
                     AutoSize = true,
-                    Text = "Simplify & Replace"
+                    AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                    Dock = DockStyle.Fill,
+                    FlowDirection = FlowDirection.LeftToRight,
+                    Margin = new Padding(0, 8, 0, 0)
                 };
 
-                _simplifyButton.Click += async (s, e) => await HandleSimplifyClickAsync();
-                layout.Controls.Add(_simplifyButton, 0, 1);
+                if (showSimplifyButton)
+                {
+                    _simplifyButton = new Button
+                    {
+                        AutoSize = true,
+                        Text = "Simplify & Replace",
+                        Margin = new Padding(0, 0, showRewriteButton ? 8 : 0, 0)
+                    };
+
+                    _simplifyButton.Click += async (s, e) => await HandleSimplifyClickAsync();
+                    buttonPanel.Controls.Add(_simplifyButton);
+                }
+
+                if (showRewriteButton)
+                {
+                    _rewriteButton = new Button
+                    {
+                        AutoSize = true,
+                        Text = "Rewrite…"
+                    };
+
+                    _rewriteMenu = new ContextMenuStrip();
+                    _rewriteStyleDisplayNames = new Dictionary<string, string>
+                    {
+                        { "minimal", "Minimal" },
+                        { "spelling", "Fix Spelling" },
+                        { "shorter", "Shorter" },
+                        { "longer", "Longer" },
+                        { "formal", "Formal" },
+                        { "casual", "Casual" }
+                    };
+
+                    foreach (var kvp in _rewriteStyleDisplayNames)
+                    {
+                        var item = new ToolStripMenuItem(kvp.Value) { Tag = kvp.Key };
+                        item.Click += async (s, e) =>
+                        {
+                            _rewriteMenu?.Close();
+                            if (s is ToolStripMenuItem menuItem && menuItem.Tag is string styleKey)
+                            {
+                                await HandleRewriteStyleSelectedAsync(styleKey);
+                            }
+                        };
+                        _rewriteMenu.Items.Add(item);
+                    }
+
+                    _rewriteButton.Click += (s, e) =>
+                    {
+                        if (_rewriteMenu is not null)
+                        {
+                            _rewriteMenu.Show(_rewriteButton, new Point(0, _rewriteButton.Height));
+                        }
+                    };
+
+                    buttonPanel.Controls.Add(_rewriteButton);
+                }
+
+                layout.Controls.Add(buttonPanel, 0, 1);
             }
 
             Controls.Add(layout);
@@ -126,6 +190,10 @@ namespace GlobalTextHelper
             {
                 _simplifyButton.Enabled = !isBusy;
             }
+            if (_rewriteButton is not null)
+            {
+                _rewriteButton.Enabled = !isBusy;
+            }
         }
 
         private async Task HandleSimplifyClickAsync()
@@ -145,6 +213,40 @@ namespace GlobalTextHelper
             catch (Exception ex)
             {
                 UpdateMessage($"Failed to simplify: {ex.Message}");
+                RestartAutoClose(4000);
+            }
+            finally
+            {
+                if (!IsDisposed)
+                {
+                    SetBusyState(false);
+                }
+            }
+        }
+
+        private async Task HandleRewriteStyleSelectedAsync(string styleKey)
+        {
+            var handler = RewriteRequested;
+            if (handler is null)
+                return;
+
+            StopAutoClose();
+            string displayName = styleKey;
+            if (_rewriteStyleDisplayNames is not null && _rewriteStyleDisplayNames.TryGetValue(styleKey, out var friendly))
+            {
+                displayName = friendly;
+            }
+
+            UpdateMessage($"Rewriting selection ({displayName})…");
+            SetBusyState(true);
+
+            try
+            {
+                await handler(this, styleKey);
+            }
+            catch (Exception ex)
+            {
+                UpdateMessage($"Failed to rewrite: {ex.Message}");
                 RestartAutoClose(4000);
             }
             finally

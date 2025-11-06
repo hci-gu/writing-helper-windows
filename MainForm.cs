@@ -126,7 +126,11 @@ namespace GlobalTextHelper
                     if (!string.IsNullOrWhiteSpace(text))
                     {
                         string summary = Summarizer.Summarize(text, 200);
-                        ShowPopup(summary, autohideMs: 3000, simplifyHandler: popup => SimplifySelectionAsync(popup, text));
+                        ShowPopup(
+                            summary,
+                            autohideMs: 3000,
+                            simplifyHandler: popup => SimplifySelectionAsync(popup, text),
+                            rewriteHandler: (popup, style) => RewriteSelectionAsync(popup, text, style));
                     }
                 }
             }
@@ -151,13 +155,22 @@ namespace GlobalTextHelper
             }));
         }
 
-        private void ShowPopup(string text, int autohideMs = 3000, Func<PopupForm, Task>? simplifyHandler = null)
+        private void ShowPopup(
+            string text,
+            int autohideMs = 3000,
+            Func<PopupForm, Task>? simplifyHandler = null,
+            Func<PopupForm, string, Task>? rewriteHandler = null)
         {
             bool showSimplifyButton = simplifyHandler is not null;
-            var popup = new PopupForm(text, autohideMs, showSimplifyButton);
+            bool showRewriteButton = rewriteHandler is not null;
+            var popup = new PopupForm(text, autohideMs, showSimplifyButton, showRewriteButton);
             if (simplifyHandler is not null)
             {
                 popup.SimplifyRequested += simplifyHandler;
+            }
+            if (rewriteHandler is not null)
+            {
+                popup.RewriteRequested += rewriteHandler;
             }
             var cursor = Cursor.Position;
 
@@ -202,6 +215,36 @@ namespace GlobalTextHelper
             catch (Exception ex)
             {
                 popup.UpdateMessage($"Unable to simplify: {ex.Message}");
+                popup.RestartAutoClose(4000);
+            }
+        }
+
+        private async Task RewriteSelectionAsync(PopupForm popup, string originalText, string style)
+        {
+            try
+            {
+                var client = GetOrCreateOpenAiClient();
+                string rewritten = await _promptBuilder.RewriteSelectionAsync(client, originalText, style);
+
+                if (string.IsNullOrWhiteSpace(rewritten))
+                {
+                    popup.UpdateMessage("The assistant returned an empty response.");
+                    popup.RestartAutoClose(3000);
+                    return;
+                }
+
+                ReplaceSelectionWithText(originalText, rewritten);
+                string displayStyle = !string.IsNullOrWhiteSpace(style)
+                    ? (style.Length > 1
+                        ? char.ToUpper(style[0]) + style.Substring(1)
+                        : style.ToUpperInvariant())
+                    : "selected";
+                popup.UpdateMessage($"Rewritten text inserted ({displayStyle}).");
+                popup.RestartAutoClose(1500);
+            }
+            catch (Exception ex)
+            {
+                popup.UpdateMessage($"Unable to rewrite: {ex.Message}");
                 popup.RestartAutoClose(4000);
             }
         }
