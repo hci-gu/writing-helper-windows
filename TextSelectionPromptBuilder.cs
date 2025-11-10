@@ -46,7 +46,7 @@ namespace GlobalTextHelper
 
             string sanitized = selectedText.Trim();
 
-            return $"{SimplifierInstructions}\n\nInput text:\n"""\n{sanitized}\n"""\n\nSimplified response:";
+            return $"{SimplifierInstructions}\n\nInput text:\n\"\"\n{sanitized}\n\"\"\n\nSimplified response:";
         }
 
         /// <summary>
