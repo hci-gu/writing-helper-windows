@@ -9,6 +9,11 @@ namespace GlobalTextHelper
         static void Main()
         {
             ApplicationConfiguration.Initialize();
+            using var activeWindowMonitor = new ActiveWindowMonitor();
+            activeWindowMonitor.Start();
+
+            Application.ApplicationExit += (_, __) => activeWindowMonitor.Stop();
+
             Application.Run(new MainForm());
         }
     }
