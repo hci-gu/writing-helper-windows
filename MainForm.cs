@@ -13,6 +13,8 @@ namespace GlobalTextHelper
         private readonly TextSelectionPromptBuilder _promptBuilder = new();
         private OpenAiChatClient? _openAiClient;
         private IntPtr _lastFocusedWindow = IntPtr.Zero;
+        private PopupForm? _activePopup;
+        private bool _isReplacingSelection;
 
         // Clipboard listener
         [DllImport("user32.dll", SetLastError = true)]
@@ -117,6 +119,9 @@ namespace GlobalTextHelper
 
         private void OnClipboardUpdated()
         {
+            if (_isReplacingSelection)
+                return;
+
             try
             {
                 if (Clipboard.ContainsText())
@@ -145,9 +150,15 @@ namespace GlobalTextHelper
             if (eventType != EVENT_OBJECT_TEXTSELECTIONCHANGED)
                 return;
 
+            if (_isReplacingSelection)
+                return;
+
             // Marshal to UI thread to interact with our forms
             BeginInvoke(new Action(() =>
             {
+                if (_isReplacingSelection)
+                    return;
+
                 // Barebones behavior: nudge the user that a selection occurred.
                 // (You can later plug UI Automation here to read highlighted text.)
                 ShowPopup("Text selection changed (press Ctrl+C to summarize).", autohideMs: 1500);
@@ -162,6 +173,8 @@ namespace GlobalTextHelper
         {
             bool showSimplifyButton = simplifyHandler is not null;
             bool showRewriteButton = rewriteHandler is not null;
+            CloseActivePopup();
+
             var popup = new PopupForm(text, autohideMs, showSimplifyButton, showRewriteButton);
             if (simplifyHandler is not null)
             {
@@ -178,6 +191,15 @@ namespace GlobalTextHelper
 
             popup.StartPosition = FormStartPosition.Manual;
             popup.Location = new Point(x, y);
+            popup.FormClosed += (_, __) =>
+            {
+                if (ReferenceEquals(_activePopup, popup))
+                {
+                    _activePopup = null;
+                }
+            };
+
+            _activePopup = popup;
             popup.Show();
 
             // Keep the popup on-screen if near edges
@@ -289,6 +311,10 @@ namespace GlobalTextHelper
             if (string.IsNullOrEmpty(replacement))
                 throw new InvalidOperationException("Replacement text cannot be empty.");
 
+            CloseActivePopup();
+
+            _isReplacingSelection = true;
+
             IDataObject? clipboardData = null;
             try
             {
@@ -329,6 +355,28 @@ namespace GlobalTextHelper
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine("Clipboard restore failed: " + ex.Message);
+            }
+            finally
+            {
+                _isReplacingSelection = false;
+            }
+        }
+
+        private void CloseActivePopup()
+        {
+            if (_activePopup is null)
+                return;
+
+            try
+            {
+                if (!_activePopup.IsDisposed)
+                {
+                    _activePopup.Close();
+                }
+            }
+            finally
+            {
+                _activePopup = null;
             }
         }
 
