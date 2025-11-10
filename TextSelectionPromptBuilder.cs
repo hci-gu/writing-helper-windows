@@ -104,7 +104,7 @@ namespace GlobalTextHelper
                    "Follow the provided instructions exactly and only rewrite the text without adding commentary.\n\n" +
                    $"Requested style: {normalizedStyle}\n" +
                    $"Style instructions: {instructions}\n\n" +
-                   "Original text:\n"""\n" + sanitized + "\n"""\n\n" +
+                   "Original text:\n\"\"\"\n" + sanitized + "\n\"\"\"\n\n" +
                    "Rewritten text:";
         }
 
