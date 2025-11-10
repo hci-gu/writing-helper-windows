@@ -207,9 +207,24 @@ namespace GlobalTextHelper
                     return;
                 }
 
-                ReplaceSelectionWithText(originalText, simplified);
-                popup.UpdateMessage("Simplified text inserted.");
-                popup.RestartAutoClose(1500);
+                popup.SetBusyState(false);
+                bool approved = await popup.ShowReplacementPreviewAsync(
+                    simplified,
+                    "Use Simplified Text");
+
+                popup.ClearActionButtons();
+
+                if (approved)
+                {
+                    ReplaceSelectionWithText(originalText, simplified);
+                    popup.UpdateMessage("Simplified text inserted.");
+                    popup.RestartAutoClose(1500);
+                }
+                else
+                {
+                    popup.UpdateMessage("Replacement canceled.");
+                    popup.RestartAutoClose(1500);
+                }
             }
             catch (Exception ex)
             {
@@ -232,14 +247,30 @@ namespace GlobalTextHelper
                     return;
                 }
 
-                ReplaceSelectionWithText(originalText, rewritten);
+                popup.SetBusyState(false);
                 string displayStyle = !string.IsNullOrWhiteSpace(style)
                     ? (style.Length > 1
                         ? char.ToUpper(style[0]) + style.Substring(1)
                         : style.ToUpperInvariant())
                     : "selected";
-                popup.UpdateMessage($"Rewritten text inserted ({displayStyle}).");
-                popup.RestartAutoClose(1500);
+
+                bool approved = await popup.ShowReplacementPreviewAsync(
+                    rewritten,
+                    "Use Rewritten Text");
+
+                popup.ClearActionButtons();
+
+                if (approved)
+                {
+                    ReplaceSelectionWithText(originalText, rewritten);
+                    popup.UpdateMessage($"Rewritten text inserted ({displayStyle}).");
+                    popup.RestartAutoClose(1500);
+                }
+                else
+                {
+                    popup.UpdateMessage("Replacement canceled.");
+                    popup.RestartAutoClose(1500);
+                }
             }
             catch (Exception ex)
             {
