@@ -9,4 +9,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Office.Interop.Outlook" Version="16.0.5251.0" />
+  </ItemGroup>
+
 </Project>
