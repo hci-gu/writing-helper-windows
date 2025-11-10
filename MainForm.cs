@@ -125,9 +125,8 @@ namespace GlobalTextHelper
                     string text = Clipboard.GetText();
                     if (!string.IsNullOrWhiteSpace(text))
                     {
-                        string summary = Summarizer.Summarize(text, 200);
                         ShowPopup(
-                            summary,
+                            "Choose an action for the selected text.",
                             autohideMs: 30000,
                             simplifyHandler: popup => SimplifySelectionAsync(popup, text),
                             rewriteHandler: (popup, style) => RewriteSelectionAsync(popup, text, style));
