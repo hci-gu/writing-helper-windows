@@ -15,12 +15,16 @@ namespace GlobalTextHelper
         private readonly Button _closeButton;
         private readonly ContextMenuStrip? _rewriteMenu;
         private readonly Dictionary<string, string>? _rewriteStyleDisplayNames;
+        private readonly FlowLayoutPanel _buttonPanel;
+        private TaskCompletionSource<bool>? _confirmationCompletion;
 
         public event Func<PopupForm, Task>? SimplifyRequested;
         public event Func<PopupForm, string, Task>? RewriteRequested;
 
         public PopupForm(string message, int autohideMs, bool showSimplifyButton = false, bool showRewriteButton = false)
         {
+            AutoSize = true;
+            AutoSizeMode = AutoSizeMode.GrowAndShrink;
             FormBorderStyle = FormBorderStyle.None;
             StartPosition = FormStartPosition.Manual;
             TopMost = true;
@@ -35,17 +39,14 @@ namespace GlobalTextHelper
                 AutoSizeMode = AutoSizeMode.GrowAndShrink,
                 Dock = DockStyle.Fill,
                 ColumnCount = 1,
-                RowCount = (showSimplifyButton || showRewriteButton) ? 2 : 1,
+                RowCount = 2,
                 BackColor = Color.White,
                 Padding = new Padding(20, 18, 20, 20),
             };
 
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
             layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            if (showSimplifyButton || showRewriteButton)
-            {
-                layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            }
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
             var headerPanel = new TableLayoutPanel
             {
@@ -125,71 +126,69 @@ namespace GlobalTextHelper
 
             layout.Controls.Add(headerPanel, 0, 0);
 
-            if (showSimplifyButton || showRewriteButton)
+            _buttonPanel = new FlowLayoutPanel
             {
-                var buttonPanel = new FlowLayoutPanel
-                {
-                    AutoSize = true,
-                    AutoSizeMode = AutoSizeMode.GrowAndShrink,
-                    Dock = DockStyle.Fill,
-                    FlowDirection = FlowDirection.LeftToRight,
-                    Margin = new Padding(0, 12, 0, 0)
-                };
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                Dock = DockStyle.Fill,
+                FlowDirection = FlowDirection.LeftToRight,
+                Margin = new Padding(0, 12, 0, 0),
+                Visible = showSimplifyButton || showRewriteButton
+            };
 
-                if (showSimplifyButton)
-                {
-                    _simplifyButton = CreatePrimaryActionButton("Simplify & Replace");
-                    if (showRewriteButton)
-                    {
-                        _simplifyButton.Margin = new Padding(0, 0, 8, 0);
-                    }
-
-                    _simplifyButton.Click += async (s, e) => await HandleSimplifyClickAsync();
-                    buttonPanel.Controls.Add(_simplifyButton);
-                }
-
+            if (showSimplifyButton)
+            {
+                _simplifyButton = CreatePrimaryActionButton("Simplify & Replace");
                 if (showRewriteButton)
                 {
-                    _rewriteButton = CreateSecondaryActionButton("Rewrite…");
-
-                    _rewriteMenu = new ContextMenuStrip();
-                    _rewriteStyleDisplayNames = new Dictionary<string, string>
-                    {
-                        { "minimal", "Minimal" },
-                        { "spelling", "Fix Spelling" },
-                        { "shorter", "Shorter" },
-                        { "longer", "Longer" },
-                        { "formal", "Formal" },
-                        { "casual", "Casual" }
-                    };
-
-                    foreach (var kvp in _rewriteStyleDisplayNames)
-                    {
-                        var item = new ToolStripMenuItem(kvp.Value) { Tag = kvp.Key };
-                        item.Click += async (s, e) =>
-                        {
-                            _rewriteMenu?.Close();
-                            if (s is ToolStripMenuItem menuItem && menuItem.Tag is string styleKey)
-                            {
-                                await HandleRewriteStyleSelectedAsync(styleKey);
-                            }
-                        };
-                        _rewriteMenu.Items.Add(item);
-                    }
-
-                    _rewriteButton.Click += (s, e) =>
-                    {
-                        if (_rewriteMenu is not null)
-                        {
-                            _rewriteMenu.Show(_rewriteButton, new Point(0, _rewriteButton.Height));
-                        }
-                    };
-
-                    buttonPanel.Controls.Add(_rewriteButton);
+                    _simplifyButton.Margin = new Padding(0, 0, 8, 0);
                 }
 
-                layout.Controls.Add(buttonPanel, 0, 1);
+                _simplifyButton.Click += async (s, e) => await HandleSimplifyClickAsync();
+                _buttonPanel.Controls.Add(_simplifyButton);
             }
+
+            if (showRewriteButton)
+            {
+                _rewriteButton = CreateSecondaryActionButton("Rewrite…");
+
+                _rewriteMenu = new ContextMenuStrip();
+                _rewriteStyleDisplayNames = new Dictionary<string, string>
+                {
+                    { "minimal", "Minimal" },
+                    { "spelling", "Fix Spelling" },
+                    { "shorter", "Shorter" },
+                    { "longer", "Longer" },
+                    { "formal", "Formal" },
+                    { "casual", "Casual" }
+                };
+
+                foreach (var kvp in _rewriteStyleDisplayNames)
+                {
+                    var item = new ToolStripMenuItem(kvp.Value) { Tag = kvp.Key };
+                    item.Click += async (s, e) =>
+                    {
+                        _rewriteMenu?.Close();
+                        if (s is ToolStripMenuItem menuItem && menuItem.Tag is string styleKey)
+                        {
+                            await HandleRewriteStyleSelectedAsync(styleKey);
+                        }
+                    };
+                    _rewriteMenu.Items.Add(item);
+                }
+
+                _rewriteButton.Click += (s, e) =>
+                {
+                    if (_rewriteMenu is not null)
+                    {
+                        _rewriteMenu.Show(_rewriteButton, new Point(0, _rewriteButton.Height));
+                    }
+                };
+
+                _buttonPanel.Controls.Add(_rewriteButton);
+            }
+
+            layout.Controls.Add(_buttonPanel, 0, 1);
 
             Controls.Add(layout);
 
@@ -227,12 +226,73 @@ namespace GlobalTextHelper
             }
         }
 
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            if (_confirmationCompletion is not null)
+            {
+                CompleteConfirmation(false);
+            }
+            base.OnFormClosing(e);
+        }
+
         public void UpdateMessage(string text)
         {
             if (!IsDisposed)
             {
                 _messageLabel.Text = text;
+                PerformLayout();
             }
+        }
+
+        public void ClearActionButtons()
+        {
+            if (IsDisposed)
+                return;
+
+            _buttonPanel.Controls.Clear();
+            _buttonPanel.Visible = false;
+            _buttonPanel.Enabled = true;
+        }
+
+        public Task<bool> ShowReplacementPreviewAsync(string replacementText, string approveButtonText, string cancelButtonText = "Cancel")
+        {
+            if (IsDisposed)
+                throw new ObjectDisposedException(nameof(PopupForm));
+
+            if (_confirmationCompletion is not null)
+                throw new InvalidOperationException("A confirmation is already in progress.");
+
+            _confirmationCompletion = new TaskCompletionSource<bool>();
+
+            _messageLabel.MaximumSize = new Size(480, 0);
+            UpdateMessage(replacementText);
+
+            _buttonPanel.Controls.Clear();
+            _buttonPanel.Enabled = true;
+
+            var cancelButton = CreateSecondaryActionButton(cancelButtonText);
+            cancelButton.Margin = new Padding(8, 0, 0, 0);
+            cancelButton.Click += (s, e) => CompleteConfirmation(false);
+
+            var approveButton = CreatePrimaryActionButton(approveButtonText);
+            approveButton.Click += (s, e) => CompleteConfirmation(true);
+
+            _buttonPanel.Controls.Add(approveButton);
+            _buttonPanel.Controls.Add(cancelButton);
+            _buttonPanel.Visible = true;
+
+            PerformLayout();
+            return _confirmationCompletion.Task;
+        }
+
+        private void CompleteConfirmation(bool accepted)
+        {
+            if (_confirmationCompletion is null)
+                return;
+
+            _buttonPanel.Enabled = false;
+            _confirmationCompletion.TrySetResult(accepted);
+            _confirmationCompletion = null;
         }
 
         public void StopAutoClose()
