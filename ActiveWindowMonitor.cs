@@ -1,5 +1,7 @@
 using System;
 using System.Diagnostics;
+using System.IO;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using Outlook = Microsoft.Office.Interop.Outlook;
@@ -127,6 +129,28 @@ namespace GlobalTextHelper
 
         private static void LogActiveOutlookEmail()
         {
+            try
+            {
+                LogActiveOutlookEmailCore();
+            }
+            catch (FileNotFoundException ex) when (!string.IsNullOrEmpty(ex.FileName) &&
+                                                   ex.FileName.StartsWith("office", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.WriteLine("Outlook primary interop assembly is not available. Install Microsoft Office or the Office primary interop assemblies to enable Outlook email logging.");
+            }
+            catch (COMException ex)
+            {
+                Console.WriteLine($"Failed to retrieve Outlook active email via COM: {ex.Message}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to retrieve Outlook active email: {ex.Message}");
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void LogActiveOutlookEmailCore()
+        {
             Outlook.Application? outlookApp = null;
             Outlook.Explorer? explorer = null;
             Outlook.Selection? selection = null;
@@ -148,10 +172,6 @@ namespace GlobalTextHelper
                     string subject = mailItem.Subject ?? string.Empty;
                     Console.WriteLine($"Active email in Outlook: {subject}");
                 }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Failed to retrieve Outlook active email: {ex.Message}");
             }
             finally
             {
