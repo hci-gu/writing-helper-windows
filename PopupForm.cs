@@ -12,6 +12,7 @@ namespace GlobalTextHelper
         private readonly Label _label;
         private readonly Button? _simplifyButton;
         private readonly Button? _rewriteButton;
+        private readonly Button _closeButton;
         private readonly ContextMenuStrip? _rewriteMenu;
         private readonly Dictionary<string, string>? _rewriteStyleDisplayNames;
 
@@ -24,9 +25,9 @@ namespace GlobalTextHelper
             StartPosition = FormStartPosition.Manual;
             TopMost = true;
             ShowInTaskbar = false;
-            BackColor = Color.FromArgb(250, 250, 250);
+            BackColor = Color.FromArgb(248, 249, 252);
             Opacity = 0.98;
-            Padding = new Padding(12);
+            Padding = new Padding(14, 14, 14, 16);
 
             var layout = new TableLayoutPanel
             {
@@ -35,16 +36,69 @@ namespace GlobalTextHelper
                 Dock = DockStyle.Fill,
                 ColumnCount = 1,
                 RowCount = (showSimplifyButton || showRewriteButton) ? 2 : 1,
+                BackColor = Color.White,
+                Padding = new Padding(16, 14, 16, 16),
             };
+
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            if (showSimplifyButton || showRewriteButton)
+            {
+                layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            }
+
+            var headerPanel = new TableLayoutPanel
+            {
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                Dock = DockStyle.Fill,
+                ColumnCount = 2,
+                Margin = new Padding(0, 0, 0, 8)
+            };
+
+            headerPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+            headerPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            headerPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
             _label = new Label
             {
                 AutoSize = true,
                 MaximumSize = new Size(450, 0), // wrap long lines
-                Text = text
+                Text = text,
+                Font = new Font("Segoe UI", 9.75f),
+                ForeColor = Color.FromArgb(40, 40, 40),
+                Margin = new Padding(0)
             };
 
-            layout.Controls.Add(_label, 0, 0);
+            headerPanel.Controls.Add(_label, 0, 0);
+
+            _closeButton = new Button
+            {
+                Text = "✕",
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.Transparent,
+                ForeColor = Color.FromArgb(130, 130, 130),
+                Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+                Margin = new Padding(12, 0, 0, 0),
+                Padding = new Padding(6, 2, 6, 2),
+                Cursor = Cursors.Hand,
+                TabStop = false,
+                UseVisualStyleBackColor = false
+            };
+
+            _closeButton.FlatAppearance.BorderSize = 0;
+            _closeButton.FlatAppearance.MouseOverBackColor = Color.FromArgb(235, 235, 235);
+            _closeButton.Click += (s, e) =>
+            {
+                StopAutoClose();
+                Close();
+            };
+
+            headerPanel.Controls.Add(_closeButton, 1, 0);
+
+            layout.Controls.Add(headerPanel, 0, 0);
 
             if (showSimplifyButton || showRewriteButton)
             {
@@ -59,12 +113,11 @@ namespace GlobalTextHelper
 
                 if (showSimplifyButton)
                 {
-                    _simplifyButton = new Button
+                    _simplifyButton = CreatePrimaryActionButton("Simplify & Replace");
+                    if (showRewriteButton)
                     {
-                        AutoSize = true,
-                        Text = "Simplify & Replace",
-                        Margin = new Padding(0, 0, showRewriteButton ? 8 : 0, 0)
-                    };
+                        _simplifyButton.Margin = new Padding(0, 0, 8, 0);
+                    }
 
                     _simplifyButton.Click += async (s, e) => await HandleSimplifyClickAsync();
                     buttonPanel.Controls.Add(_simplifyButton);
@@ -72,11 +125,7 @@ namespace GlobalTextHelper
 
                 if (showRewriteButton)
                 {
-                    _rewriteButton = new Button
-                    {
-                        AutoSize = true,
-                        Text = "Rewrite…"
-                    };
+                    _rewriteButton = CreateSecondaryActionButton("Rewrite…");
 
                     _rewriteMenu = new ContextMenuStrip();
                     _rewriteStyleDisplayNames = new Dictionary<string, string>
@@ -122,8 +171,8 @@ namespace GlobalTextHelper
             // Subtle border
             Paint += (s, e) =>
             {
-                using var pen = new Pen(Color.LightGray);
-                e.Graphics.DrawRectangle(pen, 0, 0, Width - 1, Height - 1);
+                using var backgroundPen = new Pen(Color.FromArgb(228, 232, 245));
+                e.Graphics.DrawRectangle(backgroundPen, 0, 0, Width - 1, Height - 1);
             };
 
             _timer = new System.Windows.Forms.Timer { Interval = autohideMs };
@@ -194,6 +243,7 @@ namespace GlobalTextHelper
             {
                 _rewriteButton.Enabled = !isBusy;
             }
+            _closeButton.Enabled = !isBusy;
         }
 
         private async Task HandleSimplifyClickAsync()
@@ -222,6 +272,48 @@ namespace GlobalTextHelper
                     SetBusyState(false);
                 }
             }
+        }
+
+        private static Button CreatePrimaryActionButton(string text)
+        {
+            var button = CreateBaseActionButton(text);
+            var baseColor = Color.FromArgb(66, 133, 244);
+            button.BackColor = baseColor;
+            button.ForeColor = Color.White;
+            button.FlatAppearance.BorderColor = baseColor;
+            button.FlatAppearance.MouseOverBackColor = ControlPaint.Light(baseColor, 0.2f);
+            button.FlatAppearance.MouseDownBackColor = ControlPaint.Dark(baseColor, 0.15f);
+            return button;
+        }
+
+        private static Button CreateSecondaryActionButton(string text)
+        {
+            var button = CreateBaseActionButton(text);
+            var accentColor = Color.FromArgb(66, 133, 244);
+            button.BackColor = Color.White;
+            button.ForeColor = accentColor;
+            button.FlatAppearance.BorderColor = Color.FromArgb(205, 217, 243);
+            button.FlatAppearance.MouseOverBackColor = Color.FromArgb(237, 242, 253);
+            button.FlatAppearance.MouseDownBackColor = Color.FromArgb(225, 235, 250);
+            return button;
+        }
+
+        private static Button CreateBaseActionButton(string text)
+        {
+            var button = new Button
+            {
+                AutoSize = true,
+                Text = text,
+                FlatStyle = FlatStyle.Flat,
+                UseVisualStyleBackColor = false,
+                Margin = new Padding(0),
+                Padding = new Padding(12, 6, 12, 6),
+                Cursor = Cursors.Hand,
+                Font = new Font("Segoe UI", 9F, FontStyle.Bold)
+            };
+
+            button.FlatAppearance.BorderSize = 1;
+            return button;
         }
 
         private async Task HandleRewriteStyleSelectedAsync(string styleKey)
