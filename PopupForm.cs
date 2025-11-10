@@ -9,7 +9,7 @@ namespace GlobalTextHelper
     public class PopupForm : Form
     {
         private readonly System.Windows.Forms.Timer _timer;
-        private readonly Label _label;
+        private readonly Label _messageLabel;
         private readonly Button? _simplifyButton;
         private readonly Button? _rewriteButton;
         private readonly Button _closeButton;
@@ -19,15 +19,15 @@ namespace GlobalTextHelper
         public event Func<PopupForm, Task>? SimplifyRequested;
         public event Func<PopupForm, string, Task>? RewriteRequested;
 
-        public PopupForm(string text, int autohideMs, bool showSimplifyButton = false, bool showRewriteButton = false)
+        public PopupForm(string message, int autohideMs, bool showSimplifyButton = false, bool showRewriteButton = false)
         {
             FormBorderStyle = FormBorderStyle.None;
             StartPosition = FormStartPosition.Manual;
             TopMost = true;
             ShowInTaskbar = false;
-            BackColor = Color.FromArgb(248, 249, 252);
+            BackColor = Color.FromArgb(243, 245, 250);
             Opacity = 0.98;
-            Padding = new Padding(14, 14, 14, 16);
+            Padding = new Padding(16, 16, 16, 18);
 
             var layout = new TableLayoutPanel
             {
@@ -37,7 +37,7 @@ namespace GlobalTextHelper
                 ColumnCount = 1,
                 RowCount = (showSimplifyButton || showRewriteButton) ? 2 : 1,
                 BackColor = Color.White,
-                Padding = new Padding(16, 14, 16, 16),
+                Padding = new Padding(20, 18, 20, 20),
             };
 
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
@@ -53,24 +53,49 @@ namespace GlobalTextHelper
                 AutoSizeMode = AutoSizeMode.GrowAndShrink,
                 Dock = DockStyle.Fill,
                 ColumnCount = 2,
-                Margin = new Padding(0, 0, 0, 8)
+                Margin = new Padding(0, 0, 0, 6)
             };
 
             headerPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
             headerPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             headerPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
-            _label = new Label
+            var headerTextPanel = new TableLayoutPanel
             {
                 AutoSize = true,
-                MaximumSize = new Size(450, 0), // wrap long lines
-                Text = text,
-                Font = new Font("Segoe UI", 9.75f),
-                ForeColor = Color.FromArgb(40, 40, 40),
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                ColumnCount = 1,
+                Dock = DockStyle.Fill,
+                Margin = new Padding(0),
+                RowCount = 2,
+            };
+
+            headerTextPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            headerTextPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+            var titleLabel = new Label
+            {
+                AutoSize = true,
+                Text = "Writing Helper",
+                Font = new Font("Segoe UI", 10.5f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(46, 90, 165),
+                Margin = new Padding(0, 0, 0, 2)
+            };
+
+            _messageLabel = new Label
+            {
+                AutoSize = true,
+                MaximumSize = new Size(380, 0),
+                Text = string.IsNullOrWhiteSpace(message) ? "Choose an action for the selected text." : message,
+                Font = new Font("Segoe UI", 9F),
+                ForeColor = Color.FromArgb(60, 60, 60),
                 Margin = new Padding(0)
             };
 
-            headerPanel.Controls.Add(_label, 0, 0);
+            headerTextPanel.Controls.Add(titleLabel, 0, 0);
+            headerTextPanel.Controls.Add(_messageLabel, 0, 1);
+
+            headerPanel.Controls.Add(headerTextPanel, 0, 0);
 
             _closeButton = new Button
             {
@@ -79,7 +104,7 @@ namespace GlobalTextHelper
                 AutoSizeMode = AutoSizeMode.GrowAndShrink,
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.Transparent,
-                ForeColor = Color.FromArgb(130, 130, 130),
+                ForeColor = Color.FromArgb(120, 120, 120),
                 Font = new Font("Segoe UI", 9F, FontStyle.Bold),
                 Margin = new Padding(12, 0, 0, 0),
                 Padding = new Padding(6, 2, 6, 2),
@@ -89,7 +114,7 @@ namespace GlobalTextHelper
             };
 
             _closeButton.FlatAppearance.BorderSize = 0;
-            _closeButton.FlatAppearance.MouseOverBackColor = Color.FromArgb(235, 235, 235);
+            _closeButton.FlatAppearance.MouseOverBackColor = Color.FromArgb(232, 237, 250);
             _closeButton.Click += (s, e) =>
             {
                 StopAutoClose();
@@ -108,7 +133,7 @@ namespace GlobalTextHelper
                     AutoSizeMode = AutoSizeMode.GrowAndShrink,
                     Dock = DockStyle.Fill,
                     FlowDirection = FlowDirection.LeftToRight,
-                    Margin = new Padding(0, 8, 0, 0)
+                    Margin = new Padding(0, 12, 0, 0)
                 };
 
                 if (showSimplifyButton)
@@ -171,7 +196,7 @@ namespace GlobalTextHelper
             // Subtle border
             Paint += (s, e) =>
             {
-                using var backgroundPen = new Pen(Color.FromArgb(228, 232, 245));
+                using var backgroundPen = new Pen(Color.FromArgb(216, 224, 244));
                 e.Graphics.DrawRectangle(backgroundPen, 0, 0, Width - 1, Height - 1);
             };
 
@@ -206,7 +231,7 @@ namespace GlobalTextHelper
         {
             if (!IsDisposed)
             {
-                _label.Text = text;
+                _messageLabel.Text = text;
             }
         }
 
