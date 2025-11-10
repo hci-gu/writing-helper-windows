@@ -2,7 +2,6 @@ using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
-using Outlook = Microsoft.Office.Interop.Outlook;
 
 namespace GlobalTextHelper
 {
@@ -103,78 +102,6 @@ namespace GlobalTextHelper
 
             _lastWindowDescription = description;
             Console.WriteLine($"Active window changed: {description}");
-
-            HandleApplicationSpecificLogging(processName);
-        }
-
-        private static void HandleApplicationSpecificLogging(string processName)
-        {
-            if (string.IsNullOrWhiteSpace(processName))
-            {
-                return;
-            }
-
-            if (processName.Equals("OUTLOOK", StringComparison.OrdinalIgnoreCase))
-            {
-                LogActiveOutlookEmail();
-            }
-            else if (processName.Equals("MSEDGE", StringComparison.OrdinalIgnoreCase) ||
-                     processName.Equals("CHROME", StringComparison.OrdinalIgnoreCase))
-            {
-                // Placeholder for future browser-specific handling.
-            }
-        }
-
-        private static void LogActiveOutlookEmail()
-        {
-            Outlook.Application? outlookApp = null;
-            Outlook.Explorer? explorer = null;
-            Outlook.Selection? selection = null;
-            Outlook.MailItem? mailItem = null;
-
-            try
-            {
-                outlookApp = new Outlook.Application();
-                explorer = outlookApp.ActiveExplorer();
-                selection = explorer?.Selection;
-
-                if (selection?.Count > 0)
-                {
-                    mailItem = selection[1] as Outlook.MailItem;
-                }
-
-                if (mailItem != null)
-                {
-                    string subject = mailItem.Subject ?? string.Empty;
-                    Console.WriteLine($"Active email in Outlook: {subject}");
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Failed to retrieve Outlook active email: {ex.Message}");
-            }
-            finally
-            {
-                if (mailItem != null)
-                {
-                    Marshal.ReleaseComObject(mailItem);
-                }
-
-                if (selection != null)
-                {
-                    Marshal.ReleaseComObject(selection);
-                }
-
-                if (explorer != null)
-                {
-                    Marshal.ReleaseComObject(explorer);
-                }
-
-                if (outlookApp != null)
-                {
-                    Marshal.ReleaseComObject(outlookApp);
-                }
-            }
         }
 
         private static string GetProcessName(IntPtr hwnd)
