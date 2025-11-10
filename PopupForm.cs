@@ -7,7 +7,7 @@ namespace GlobalTextHelper
 {
     public class PopupForm : Form
     {
-        private readonly Timer _timer;
+        private readonly System.Windows.Forms.Timer _timer;
         private readonly Label _label;
         private readonly Button? _simplifyButton;
 
@@ -62,7 +62,7 @@ namespace GlobalTextHelper
                 e.Graphics.DrawRectangle(pen, 0, 0, Width - 1, Height - 1);
             };
 
-            _timer = new Timer { Interval = autohideMs };
+            _timer = new System.Windows.Forms.Timer { Interval = autohideMs };
             if (autohideMs > 0)
             {
                 _timer.Tick += (s, e) => Close();
