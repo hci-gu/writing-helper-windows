@@ -309,7 +309,7 @@ namespace GlobalTextHelper
                 Margin = new Padding(0),
                 Padding = new Padding(12, 6, 12, 6),
                 Cursor = Cursors.Hand,
-                Font = new Font("Segoe UI", 9F, FontStyle.SemiBold)
+                Font = new Font("Segoe UI", 9F, FontStyle.Bold)
             };
 
             button.FlatAppearance.BorderSize = 1;
