@@ -128,7 +128,7 @@ namespace GlobalTextHelper
                         string summary = Summarizer.Summarize(text, 200);
                         ShowPopup(
                             summary,
-                            autohideMs: 3000,
+                            autohideMs: 30000,
                             simplifyHandler: popup => SimplifySelectionAsync(popup, text),
                             rewriteHandler: (popup, style) => RewriteSelectionAsync(popup, text, style));
                     }
