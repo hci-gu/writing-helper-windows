@@ -50,7 +50,20 @@ internal sealed class AppHost : ApplicationContext
 
         if (!HasConfiguredApiKey())
         {
-            _mainForm.BeginInvoke(new Action(() => ShowSettingsDialog(requireApiKey: true)));
+            if (_mainForm.IsHandleCreated)
+            {
+                _mainForm.BeginInvoke(new Action(() => ShowSettingsDialog(requireApiKey: true)));
+            }
+            else
+            {
+                EventHandler? handler = null;
+                handler = (_, __) =>
+                {
+                    _mainForm.HandleCreated -= handler;
+                    _mainForm.BeginInvoke(new Action(() => ShowSettingsDialog(requireApiKey: true)));
+                };
+                _mainForm.HandleCreated += handler;
+            }
         }
     }
 
