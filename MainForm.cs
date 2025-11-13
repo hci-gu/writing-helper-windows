@@ -1,6 +1,7 @@
 using System;
 using System.Drawing;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -15,6 +16,9 @@ namespace GlobalTextHelper
         private IntPtr _lastFocusedWindow = IntPtr.Zero;
         private PopupForm? _activePopup;
         private bool _isReplacingSelection;
+        private bool _isReadingSelection;
+        private string? _lastSelectionText;
+        private DateTime _lastSelectionShownAt;
 
         // Clipboard listener
         [DllImport("user32.dll", SetLastError = true)]
@@ -30,6 +34,36 @@ namespace GlobalTextHelper
 
         [DllImport("user32.dll")]
         private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+        // SendInput for copy/paste without relying on SendKeys focus
+        [StructLayout(LayoutKind.Sequential)]
+        private struct INPUT
+        {
+            public uint type;
+            public InputUnion U;
+        }
+
+        [StructLayout(LayoutKind.Explicit)]
+        private struct InputUnion
+        {
+            [FieldOffset(0)] public KEYBDINPUT ki;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct KEYBDINPUT
+        {
+            public ushort wVk;
+            public ushort wScan;
+            public uint dwFlags;
+            public uint time;
+            public IntPtr dwExtraInfo;
+        }
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
+
+        private const uint INPUT_KEYBOARD = 1;
+        private const uint KEYEVENTF_KEYUP = 0x0002;
 
         // WinEvent hook (text selection changed)
         private delegate void WinEventDelegate(
@@ -119,7 +153,7 @@ namespace GlobalTextHelper
 
         private void OnClipboardUpdated()
         {
-            if (_isReplacingSelection)
+            if (_isReplacingSelection || _isReadingSelection)
                 return;
 
             try
@@ -159,10 +193,111 @@ namespace GlobalTextHelper
                 if (_isReplacingSelection)
                     return;
 
-                // Barebones behavior: nudge the user that a selection occurred.
-                // (You can later plug UI Automation here to read highlighted text.)
-                ShowPopup("Text selection changed (press Ctrl+C to summarize).", autohideMs: 1500);
+                string? selectedText = TryReadSelectedText(hwnd);
+                if (string.IsNullOrWhiteSpace(selectedText))
+                    return;
+
+                string normalized = NormalizeSelectionSnapshot(selectedText);
+                var now = DateTime.UtcNow;
+                if (!string.IsNullOrEmpty(normalized))
+                {
+                    if (string.Equals(normalized, _lastSelectionText, StringComparison.Ordinal) &&
+                        (now - _lastSelectionShownAt).TotalSeconds < 1.5)
+                    {
+                        return;
+                    }
+
+                    _lastSelectionText = normalized;
+                    _lastSelectionShownAt = now;
+                }
+
+                _lastFocusedWindow = hwnd != IntPtr.Zero ? hwnd : GetForegroundWindow();
+
+                ShowPopup(
+                    "Choose an action for the selected text.",
+                    autohideMs: 30000,
+                    simplifyHandler: popup => SimplifySelectionAsync(popup, selectedText),
+                    rewriteHandler: (popup, style) => RewriteSelectionAsync(popup, selectedText, style));
             }));
+        }
+
+        private static string NormalizeSelectionSnapshot(string selection)
+        {
+            return selection.Trim();
+        }
+
+        private string? TryReadSelectedText(IntPtr sourceWindow)
+        {
+            if (_isReadingSelection)
+                return null;
+
+            var clipboardSnapshot = TryGetClipboardSnapshot();
+            if (clipboardSnapshot is null)
+                return null;
+
+            try
+            {
+                _isReadingSelection = true;
+
+                if (sourceWindow != IntPtr.Zero)
+                {
+                    SetForegroundWindow(sourceWindow);
+                }
+
+                SendCtrlShortcut(Keys.C);
+
+                if (Clipboard.ContainsText())
+                {
+                    string text = Clipboard.GetText();
+                    if (!string.IsNullOrWhiteSpace(text))
+                    {
+                        return text;
+                    }
+                }
+            }
+            catch (ExternalException)
+            {
+                // Clipboard could be busy; ignore and fall back to clipboard listener.
+            }
+            finally
+            {
+                RestoreClipboardSnapshot(clipboardSnapshot);
+                _isReadingSelection = false;
+            }
+
+            return null;
+        }
+
+        private static IDataObject? TryGetClipboardSnapshot()
+        {
+            for (int i = 0; i < 3; i++)
+            {
+                try
+                {
+                    return Clipboard.GetDataObject();
+                }
+                catch (ExternalException)
+                {
+                    Thread.Sleep(10);
+                }
+            }
+
+            return null;
+        }
+
+        private static void RestoreClipboardSnapshot(IDataObject? snapshot)
+        {
+            if (snapshot is null)
+                return;
+
+            try
+            {
+                Clipboard.SetDataObject(snapshot);
+            }
+            catch (ExternalException)
+            {
+                // If the clipboard is busy, let the system resolve; best effort restore.
+            }
         }
 
         private void ShowPopup(
@@ -339,7 +474,7 @@ namespace GlobalTextHelper
                 SetForegroundWindow(_lastFocusedWindow);
             }
 
-            SendKeys.SendWait("^v");
+            SendCtrlShortcut(Keys.V);
 
             try
             {
@@ -377,6 +512,65 @@ namespace GlobalTextHelper
             finally
             {
                 _activePopup = null;
+            }
+        }
+
+        private static void SendCtrlShortcut(Keys key)
+        {
+            var inputs = new INPUT[4];
+            inputs[0] = new INPUT
+            {
+                type = INPUT_KEYBOARD,
+                U = new InputUnion
+                {
+                    ki = new KEYBDINPUT
+                    {
+                        wVk = (ushort)Keys.ControlKey,
+                        dwFlags = 0
+                    }
+                }
+            };
+            inputs[1] = new INPUT
+            {
+                type = INPUT_KEYBOARD,
+                U = new InputUnion
+                {
+                    ki = new KEYBDINPUT
+                    {
+                        wVk = (ushort)key,
+                        dwFlags = 0
+                    }
+                }
+            };
+            inputs[2] = new INPUT
+            {
+                type = INPUT_KEYBOARD,
+                U = new InputUnion
+                {
+                    ki = new KEYBDINPUT
+                    {
+                        wVk = (ushort)key,
+                        dwFlags = KEYEVENTF_KEYUP
+                    }
+                }
+            };
+            inputs[3] = new INPUT
+            {
+                type = INPUT_KEYBOARD,
+                U = new InputUnion
+                {
+                    ki = new KEYBDINPUT
+                    {
+                        wVk = (ushort)Keys.ControlKey,
+                        dwFlags = KEYEVENTF_KEYUP
+                    }
+                }
+            };
+
+            uint sent = SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
+            if (sent != inputs.Length)
+            {
+                System.Diagnostics.Debug.WriteLine("SendInput failed for CTRL+" + key);
             }
         }
 
