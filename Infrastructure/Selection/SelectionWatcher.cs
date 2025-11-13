@@ -1,6 +1,7 @@
 using System;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using System.Windows.Forms;
 using GlobalTextHelper.Domain.Selection;
@@ -15,6 +16,8 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
     private const uint EVENT_OBJECT_TEXTSELECTIONCHANGED = 0x8014;
     private const uint WINEVENT_OUTOFCONTEXT = 0x0000;
     private const uint WINEVENT_SKIPOWNPROCESS = 0x0002;
+
+    private const int EM_GETSEL = 0x00B0;
 
     private readonly IClipboardService _clipboardService;
     private readonly ILogger _logger;
@@ -121,6 +124,11 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
 
     private void HandleSelectionCapture(IntPtr hwnd)
     {
+        if (!HasNonEmptySelection(hwnd))
+        {
+            return;
+        }
+
         var task = _clipboardService.CaptureSelectionAsync(hwnd, CancellationToken.None);
         string? text = task.GetAwaiter().GetResult();
         if (string.IsNullOrWhiteSpace(text))
@@ -131,6 +139,49 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
         SelectionCaptured?.Invoke(
             this,
             new SelectionCapturedEventArgs(text, hwnd, SelectionSource.TextSelection, DateTime.UtcNow));
+    }
+
+    private static bool HasNonEmptySelection(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero)
+        {
+            return true;
+        }
+
+        var className = GetWindowClassName(hwnd);
+        if (string.IsNullOrEmpty(className))
+        {
+            return true;
+        }
+
+        if (!IsRichEditClass(className) &&
+            !string.Equals(className, "Edit", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        try
+        {
+            SendMessage(hwnd, EM_GETSEL, out int start, out int end);
+            return start != end;
+        }
+        catch
+        {
+            return true;
+        }
+    }
+
+    private static string GetWindowClassName(IntPtr hwnd)
+    {
+        var builder = new StringBuilder(256);
+        return GetClassName(hwnd, builder, builder.Capacity) == 0
+            ? string.Empty
+            : builder.ToString();
+    }
+
+    private static bool IsRichEditClass(string className)
+    {
+        return className.StartsWith("RICHEDIT", StringComparison.OrdinalIgnoreCase);
     }
 
     public void Dispose()
@@ -185,4 +236,10 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
 
     [DllImport("user32.dll")]
     private static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    private static extern IntPtr SendMessage(IntPtr hWnd, int Msg, out int wParam, out int lParam);
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+    private static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
 }
