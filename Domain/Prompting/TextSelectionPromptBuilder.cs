@@ -1,8 +1,9 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using GlobalTextHelper.Infrastructure.OpenAi;
 
-namespace GlobalTextHelper
+namespace GlobalTextHelper.Domain.Prompting
 {
     /// <summary>
     /// Builds prompts for simplifying highlighted text and optionally

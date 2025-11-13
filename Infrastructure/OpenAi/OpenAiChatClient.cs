@@ -8,7 +8,7 @@ using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace GlobalTextHelper
+namespace GlobalTextHelper.Infrastructure.OpenAi
 {
     /// <summary>
     /// Minimal helper for issuing chat completion requests to the OpenAI API.
