@@ -17,6 +17,11 @@ public sealed class SelectionWorkflow
             return false;
         }
 
+        if (_selectionActive)
+        {
+            return false;
+        }
+
         var normalized = Normalize(args.Text);
         if (string.IsNullOrWhiteSpace(normalized))
         {
