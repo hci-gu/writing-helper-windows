@@ -35,6 +35,36 @@ namespace GlobalTextHelper
         [DllImport("user32.dll")]
         private static extern bool SetForegroundWindow(IntPtr hWnd);
 
+        // SendInput for copy/paste without relying on SendKeys focus
+        [StructLayout(LayoutKind.Sequential)]
+        private struct INPUT
+        {
+            public uint type;
+            public InputUnion U;
+        }
+
+        [StructLayout(LayoutKind.Explicit)]
+        private struct InputUnion
+        {
+            [FieldOffset(0)] public KEYBDINPUT ki;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct KEYBDINPUT
+        {
+            public ushort wVk;
+            public ushort wScan;
+            public uint dwFlags;
+            public uint time;
+            public IntPtr dwExtraInfo;
+        }
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
+
+        private const uint INPUT_KEYBOARD = 1;
+        private const uint KEYEVENTF_KEYUP = 0x0002;
+
         // WinEvent hook (text selection changed)
         private delegate void WinEventDelegate(
             IntPtr hWinEventHook, uint eventType, IntPtr hwnd,
@@ -214,7 +244,7 @@ namespace GlobalTextHelper
                     SetForegroundWindow(sourceWindow);
                 }
 
-                SendKeys.SendWait("^c");
+                SendCtrlShortcut(Keys.C);
 
                 if (Clipboard.ContainsText())
                 {
@@ -444,7 +474,7 @@ namespace GlobalTextHelper
                 SetForegroundWindow(_lastFocusedWindow);
             }
 
-            SendKeys.SendWait("^v");
+            SendCtrlShortcut(Keys.V);
 
             try
             {
@@ -482,6 +512,65 @@ namespace GlobalTextHelper
             finally
             {
                 _activePopup = null;
+            }
+        }
+
+        private static void SendCtrlShortcut(Keys key)
+        {
+            var inputs = new INPUT[4];
+            inputs[0] = new INPUT
+            {
+                type = INPUT_KEYBOARD,
+                U = new InputUnion
+                {
+                    ki = new KEYBDINPUT
+                    {
+                        wVk = (ushort)Keys.ControlKey,
+                        dwFlags = 0
+                    }
+                }
+            };
+            inputs[1] = new INPUT
+            {
+                type = INPUT_KEYBOARD,
+                U = new InputUnion
+                {
+                    ki = new KEYBDINPUT
+                    {
+                        wVk = (ushort)key,
+                        dwFlags = 0
+                    }
+                }
+            };
+            inputs[2] = new INPUT
+            {
+                type = INPUT_KEYBOARD,
+                U = new InputUnion
+                {
+                    ki = new KEYBDINPUT
+                    {
+                        wVk = (ushort)key,
+                        dwFlags = KEYEVENTF_KEYUP
+                    }
+                }
+            };
+            inputs[3] = new INPUT
+            {
+                type = INPUT_KEYBOARD,
+                U = new InputUnion
+                {
+                    ki = new KEYBDINPUT
+                    {
+                        wVk = (ushort)Keys.ControlKey,
+                        dwFlags = KEYEVENTF_KEYUP
+                    }
+                }
+            };
+
+            uint sent = SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
+            if (sent != inputs.Length)
+            {
+                System.Diagnostics.Debug.WriteLine("SendInput failed for CTRL+" + key);
             }
         }
 
