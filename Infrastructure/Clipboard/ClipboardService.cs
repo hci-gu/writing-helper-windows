@@ -1,0 +1,234 @@
+using System;
+using System.Runtime.InteropServices;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+
+namespace GlobalTextHelper.Infrastructure.Clipboard;
+
+public interface IClipboardService
+{
+    bool IsReadingSelection { get; }
+    bool IsReplacingSelection { get; }
+    Task<string?> CaptureSelectionAsync(IntPtr sourceWindow, CancellationToken cancellationToken);
+    Task ReplaceSelectionAsync(string originalText, string replacementText, IntPtr targetWindow, CancellationToken cancellationToken);
+}
+
+public sealed class ClipboardService : IClipboardService
+{
+    private volatile bool _isReadingSelection;
+    private volatile bool _isReplacingSelection;
+
+    public bool IsReadingSelection => _isReadingSelection;
+    public bool IsReplacingSelection => _isReplacingSelection;
+
+    public Task<string?> CaptureSelectionAsync(IntPtr sourceWindow, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(CaptureSelectionInternal(sourceWindow));
+    }
+
+    public Task ReplaceSelectionAsync(string originalText, string replacementText, IntPtr targetWindow, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        ReplaceSelectionInternal(originalText, replacementText, targetWindow);
+        return Task.CompletedTask;
+    }
+
+    private string? CaptureSelectionInternal(IntPtr sourceWindow)
+    {
+        if (_isReadingSelection)
+        {
+            return null;
+        }
+
+        var snapshot = TryGetClipboardSnapshot();
+        if (snapshot is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            _isReadingSelection = true;
+
+            if (sourceWindow != IntPtr.Zero)
+            {
+                SetForegroundWindow(sourceWindow);
+            }
+
+            SendCtrlShortcut(Keys.C);
+
+            if (System.Windows.Forms.Clipboard.ContainsText())
+            {
+                var text = System.Windows.Forms.Clipboard.GetText();
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    return text;
+                }
+            }
+        }
+        catch (ExternalException)
+        {
+            // Clipboard busy. Allow fallback to clipboard listener.
+        }
+        finally
+        {
+            RestoreClipboardSnapshot(snapshot);
+            _isReadingSelection = false;
+        }
+
+        return null;
+    }
+
+    private void ReplaceSelectionInternal(string originalText, string replacementText, IntPtr targetWindow)
+    {
+        if (string.IsNullOrWhiteSpace(replacementText))
+        {
+            throw new InvalidOperationException("Replacement text cannot be empty.");
+        }
+
+        _isReplacingSelection = true;
+
+        IDataObject? snapshot = null;
+        try
+        {
+            snapshot = System.Windows.Forms.Clipboard.GetDataObject();
+        }
+        catch (Exception)
+        {
+            // Best effort snapshot.
+        }
+
+        try
+        {
+            System.Windows.Forms.Clipboard.SetText(replacementText);
+        }
+        catch (Exception ex)
+        {
+            _isReplacingSelection = false;
+            throw new InvalidOperationException("Unable to set clipboard text: " + ex.Message);
+        }
+
+        if (targetWindow != IntPtr.Zero)
+        {
+            SetForegroundWindow(targetWindow);
+        }
+
+        SendCtrlShortcut(Keys.V);
+
+        try
+        {
+            if (snapshot is not null)
+            {
+                System.Windows.Forms.Clipboard.SetDataObject(snapshot);
+            }
+            else if (!string.IsNullOrWhiteSpace(originalText))
+            {
+                System.Windows.Forms.Clipboard.SetText(originalText);
+            }
+        }
+        catch (Exception)
+        {
+            // Allow the system clipboard to recover naturally.
+        }
+        finally
+        {
+            _isReplacingSelection = false;
+        }
+    }
+
+    private static IDataObject? TryGetClipboardSnapshot()
+    {
+        for (int attempt = 0; attempt < 3; attempt++)
+        {
+            try
+            {
+                return System.Windows.Forms.Clipboard.GetDataObject();
+            }
+            catch (ExternalException)
+            {
+                Thread.Sleep(10);
+            }
+        }
+
+        return null;
+    }
+
+    private static void RestoreClipboardSnapshot(IDataObject? snapshot)
+    {
+        if (snapshot is null)
+        {
+            return;
+        }
+
+        try
+        {
+            System.Windows.Forms.Clipboard.SetDataObject(snapshot);
+        }
+        catch (ExternalException)
+        {
+            // Best effort.
+        }
+    }
+
+    private static void SendCtrlShortcut(Keys key)
+    {
+        var inputs = new INPUT[4];
+        inputs[0] = CreateKeyInput(Keys.ControlKey, false);
+        inputs[1] = CreateKeyInput(key, false);
+        inputs[2] = CreateKeyInput(key, true);
+        inputs[3] = CreateKeyInput(Keys.ControlKey, true);
+
+        SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
+    }
+
+    private static INPUT CreateKeyInput(Keys key, bool keyUp)
+    {
+        return new INPUT
+        {
+            type = INPUT_KEYBOARD,
+            U = new InputUnion
+            {
+                ki = new KEYBDINPUT
+                {
+                    wVk = (ushort)key,
+                    dwFlags = keyUp ? KEYEVENTF_KEYUP : 0,
+                    dwExtraInfo = IntPtr.Zero
+                }
+            }
+        };
+    }
+
+    [DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
+
+    private const uint INPUT_KEYBOARD = 1;
+    private const uint KEYEVENTF_KEYUP = 0x0002;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct INPUT
+    {
+        public uint type;
+        public InputUnion U;
+    }
+
+    [StructLayout(LayoutKind.Explicit)]
+    private struct InputUnion
+    {
+        [FieldOffset(0)] public KEYBDINPUT ki;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct KEYBDINPUT
+    {
+        public ushort wVk;
+        public ushort wScan;
+        public uint dwFlags;
+        public uint time;
+        public IntPtr dwExtraInfo;
+    }
+}

@@ -1,6 +1,7 @@
 using System;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
+using GlobalTextHelper.Infrastructure.App;
 
 namespace GlobalTextHelper
 {
@@ -27,17 +28,15 @@ namespace GlobalTextHelper
 
             ApplicationConfiguration.Initialize();
 
-            using var activeWindowMonitor = new ActiveWindowMonitor();
-            activeWindowMonitor.Start();
-
-            Application.ApplicationExit += (_, __) =>
+            using var appHost = new AppHost();
+            try
             {
-                activeWindowMonitor.Stop();
-                FreeConsole(); // close the console on app exit
-            };
-
-            Console.WriteLine("GlobalTextHelper started. Listening for foreground window changes...");
-            Application.Run(new MainForm());
+                Application.Run(appHost);
+            }
+            finally
+            {
+                FreeConsole();
+            }
         }
     }
 }

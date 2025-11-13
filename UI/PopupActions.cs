@@ -1,0 +1,32 @@
+using System.Collections.Generic;
+using GlobalTextHelper.Domain.Actions;
+
+namespace GlobalTextHelper.UI;
+
+public sealed class PopupActionDescriptor
+{
+    public PopupActionDescriptor(string id, string label, bool isPrimary, IReadOnlyList<TextActionOption> options)
+    {
+        Id = id;
+        Label = label;
+        IsPrimary = isPrimary;
+        Options = options ?? new List<TextActionOption>();
+    }
+
+    public string Id { get; }
+    public string Label { get; }
+    public bool IsPrimary { get; }
+    public IReadOnlyList<TextActionOption> Options { get; }
+}
+
+public sealed class PopupActionInvokedEventArgs
+{
+    public PopupActionInvokedEventArgs(string actionId, string? optionId)
+    {
+        ActionId = actionId;
+        OptionId = optionId;
+    }
+
+    public string ActionId { get; }
+    public string? OptionId { get; }
+}
