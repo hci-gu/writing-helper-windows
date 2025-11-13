@@ -19,6 +19,8 @@ public sealed class MainForm : Form
         FormBorderStyle = FormBorderStyle.FixedToolWindow;
 
         _menu = new ContextMenuStrip();
+        _menu.Items.Add("Settings…", null, (_, __) => SettingsRequested?.Invoke(this, EventArgs.Empty));
+        _menu.Items.Add(new ToolStripSeparator());
         _menu.Items.Add("Exit", null, (_, __) => ExitRequested?.Invoke(this, EventArgs.Empty));
 
         _trayIcon = new NotifyIcon
@@ -31,6 +33,7 @@ public sealed class MainForm : Form
     }
 
     public event EventHandler? ExitRequested;
+    public event EventHandler? SettingsRequested;
 
     protected override void OnShown(EventArgs e)
     {
