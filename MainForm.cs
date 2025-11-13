@@ -1,7 +1,9 @@
 using System;
 using System.Drawing;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Automation;
 using System.Windows.Forms;
 
 namespace GlobalTextHelper
@@ -15,6 +17,8 @@ namespace GlobalTextHelper
         private IntPtr _lastFocusedWindow = IntPtr.Zero;
         private PopupForm? _activePopup;
         private bool _isReplacingSelection;
+        private string? _lastSelectionText;
+        private DateTime _lastSelectionShownAt;
 
         // Clipboard listener
         [DllImport("user32.dll", SetLastError = true)]
@@ -159,10 +163,87 @@ namespace GlobalTextHelper
                 if (_isReplacingSelection)
                     return;
 
-                // Barebones behavior: nudge the user that a selection occurred.
-                // (You can later plug UI Automation here to read highlighted text.)
-                ShowPopup("Text selection changed (press Ctrl+C to summarize).", autohideMs: 1500);
+                string? selectedText = TryReadSelectedText();
+                if (string.IsNullOrWhiteSpace(selectedText))
+                    return;
+
+                string normalized = NormalizeSelectionSnapshot(selectedText);
+                var now = DateTime.UtcNow;
+                if (!string.IsNullOrEmpty(normalized))
+                {
+                    if (string.Equals(normalized, _lastSelectionText, StringComparison.Ordinal) &&
+                        (now - _lastSelectionShownAt).TotalSeconds < 1.5)
+                    {
+                        return;
+                    }
+
+                    _lastSelectionText = normalized;
+                    _lastSelectionShownAt = now;
+                }
+
+                _lastFocusedWindow = hwnd != IntPtr.Zero ? hwnd : GetForegroundWindow();
+
+                ShowPopup(
+                    "Choose an action for the selected text.",
+                    autohideMs: 30000,
+                    simplifyHandler: popup => SimplifySelectionAsync(popup, selectedText),
+                    rewriteHandler: (popup, style) => RewriteSelectionAsync(popup, selectedText, style));
             }));
+        }
+
+        private static string NormalizeSelectionSnapshot(string selection)
+        {
+            return selection.Trim();
+        }
+
+        private string? TryReadSelectedText()
+        {
+            try
+            {
+                var element = AutomationElement.FocusedElement;
+                if (element is null)
+                    return null;
+
+                if (element.TryGetCurrentPattern(TextPattern.Pattern, out object? patternObj) &&
+                    patternObj is TextPattern textPattern)
+                {
+                    var ranges = textPattern.GetSelection();
+                    if (ranges is { Length: > 0 })
+                    {
+                        var builder = new StringBuilder();
+                        foreach (var range in ranges)
+                        {
+                            if (range is null)
+                                continue;
+
+                            string text = range.GetText(int.MaxValue);
+                            if (!string.IsNullOrEmpty(text))
+                            {
+                                builder.Append(text);
+                            }
+                        }
+
+                        if (builder.Length > 0)
+                        {
+                            return builder.ToString();
+                        }
+                    }
+                }
+            }
+            catch (ElementNotAvailableException)
+            {
+                // Ignore transient automation failures.
+            }
+            catch (InvalidOperationException)
+            {
+                // Some controls may not expose a TextPattern; fall back to clipboard behavior.
+            }
+            catch (System.Runtime.InteropServices.COMException)
+            {
+                // UI Automation can throw COM exceptions when elements disappear; ignore.
+            }
+
+            return null;
         }
 
         private void ShowPopup(
