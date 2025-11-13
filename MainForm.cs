@@ -1,9 +1,8 @@
 using System;
 using System.Drawing;
 using System.Runtime.InteropServices;
-using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
-using System.Windows.Automation;
 using System.Windows.Forms;
 
 namespace GlobalTextHelper
@@ -17,6 +16,7 @@ namespace GlobalTextHelper
         private IntPtr _lastFocusedWindow = IntPtr.Zero;
         private PopupForm? _activePopup;
         private bool _isReplacingSelection;
+        private bool _isReadingSelection;
         private string? _lastSelectionText;
         private DateTime _lastSelectionShownAt;
 
@@ -123,7 +123,7 @@ namespace GlobalTextHelper
 
         private void OnClipboardUpdated()
         {
-            if (_isReplacingSelection)
+            if (_isReplacingSelection || _isReadingSelection)
                 return;
 
             try
@@ -163,7 +163,7 @@ namespace GlobalTextHelper
                 if (_isReplacingSelection)
                     return;
 
-                string? selectedText = TryReadSelectedText();
+                string? selectedText = TryReadSelectedText(hwnd);
                 if (string.IsNullOrWhiteSpace(selectedText))
                     return;
 
@@ -196,54 +196,78 @@ namespace GlobalTextHelper
             return selection.Trim();
         }
 
-        private string? TryReadSelectedText()
+        private string? TryReadSelectedText(IntPtr sourceWindow)
         {
+            if (_isReadingSelection)
+                return null;
+
+            var clipboardSnapshot = TryGetClipboardSnapshot();
+            if (clipboardSnapshot is null)
+                return null;
+
             try
             {
-                var element = AutomationElement.FocusedElement;
-                if (element is null)
-                    return null;
+                _isReadingSelection = true;
 
-                if (element.TryGetCurrentPattern(TextPattern.Pattern, out object? patternObj) &&
-                    patternObj is TextPattern textPattern)
+                if (sourceWindow != IntPtr.Zero)
                 {
-                    var ranges = textPattern.GetSelection();
-                    if (ranges is { Length: > 0 })
+                    SetForegroundWindow(sourceWindow);
+                }
+
+                SendKeys.SendWait("^c");
+
+                if (Clipboard.ContainsText())
+                {
+                    string text = Clipboard.GetText();
+                    if (!string.IsNullOrWhiteSpace(text))
                     {
-                        var builder = new StringBuilder();
-                        foreach (var range in ranges)
-                        {
-                            if (range is null)
-                                continue;
-
-                            string text = range.GetText(int.MaxValue);
-                            if (!string.IsNullOrEmpty(text))
-                            {
-                                builder.Append(text);
-                            }
-                        }
-
-                        if (builder.Length > 0)
-                        {
-                            return builder.ToString();
-                        }
+                        return text;
                     }
                 }
             }
-            catch (ElementNotAvailableException)
+            catch (ExternalException)
             {
-                // Ignore transient automation failures.
+                // Clipboard could be busy; ignore and fall back to clipboard listener.
             }
-            catch (InvalidOperationException)
+            finally
             {
-                // Some controls may not expose a TextPattern; fall back to clipboard behavior.
-            }
-            catch (System.Runtime.InteropServices.COMException)
-            {
-                // UI Automation can throw COM exceptions when elements disappear; ignore.
+                RestoreClipboardSnapshot(clipboardSnapshot);
+                _isReadingSelection = false;
             }
 
             return null;
+        }
+
+        private static IDataObject? TryGetClipboardSnapshot()
+        {
+            for (int i = 0; i < 3; i++)
+            {
+                try
+                {
+                    return Clipboard.GetDataObject();
+                }
+                catch (ExternalException)
+                {
+                    Thread.Sleep(10);
+                }
+            }
+
+            return null;
+        }
+
+        private static void RestoreClipboardSnapshot(IDataObject? snapshot)
+        {
+            if (snapshot is null)
+                return;
+
+            try
+            {
+                Clipboard.SetDataObject(snapshot);
+            }
+            catch (ExternalException)
+            {
+                // If the clipboard is busy, let the system resolve; best effort restore.
+            }
         }
 
         private void ShowPopup(
