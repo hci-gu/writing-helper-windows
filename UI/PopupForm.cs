@@ -9,6 +9,9 @@ namespace GlobalTextHelper.UI;
 
 public sealed class PopupForm : Form
 {
+    private const int WM_MOUSEACTIVATE = 0x0021;
+    private const int MA_NOACTIVATE = 3;
+
     private readonly System.Windows.Forms.Timer _timer;
     private readonly Label _messageLabel;
     private readonly FlowLayoutPanel _buttonPanel;
@@ -201,6 +204,17 @@ public sealed class PopupForm : Form
             cp.ExStyle |= 0x08000000; // WS_EX_NOACTIVATE
             return cp;
         }
+    }
+
+    protected override void WndProc(ref Message m)
+    {
+        if (m.Msg == WM_MOUSEACTIVATE)
+        {
+            m.Result = (IntPtr)MA_NOACTIVATE;
+            return;
+        }
+
+        base.WndProc(ref m);
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)
