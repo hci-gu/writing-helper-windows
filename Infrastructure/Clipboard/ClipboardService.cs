@@ -17,8 +17,10 @@ public interface IClipboardService
 
 public sealed class ClipboardService : IClipboardService
 {
+    private const int ClipboardSuppressionDelayMs = 200;
     private volatile bool _isReadingSelection;
     private volatile bool _isReplacingSelection;
+    private int _clipboardUpdateDepth;
 
     public bool IsReadingSelection => _isReadingSelection;
     public bool IsReplacingSelection => _isReplacingSelection;
@@ -96,7 +98,7 @@ public sealed class ClipboardService : IClipboardService
             throw new InvalidOperationException("Replacement text cannot be empty.");
         }
 
-        _isReplacingSelection = true;
+        BeginClipboardUpdate();
 
         IDataObject? snapshot = null;
         try
@@ -114,7 +116,6 @@ public sealed class ClipboardService : IClipboardService
         }
         catch (Exception ex)
         {
-            _isReplacingSelection = false;
             throw new InvalidOperationException("Unable to set clipboard text: " + ex.Message);
         }
 
@@ -142,7 +143,7 @@ public sealed class ClipboardService : IClipboardService
         }
         finally
         {
-            _isReplacingSelection = false;
+            ScheduleClipboardUpdateRelease();
         }
     }
 
@@ -153,7 +154,7 @@ public sealed class ClipboardService : IClipboardService
             throw new InvalidOperationException("Clipboard text cannot be empty.");
         }
 
-        _isReplacingSelection = true;
+        BeginClipboardUpdate();
         try
         {
             System.Windows.Forms.Clipboard.SetText(text);
@@ -164,8 +165,27 @@ public sealed class ClipboardService : IClipboardService
         }
         finally
         {
-            _isReplacingSelection = false;
+            ScheduleClipboardUpdateRelease();
         }
+    }
+
+    private void BeginClipboardUpdate()
+    {
+        Interlocked.Increment(ref _clipboardUpdateDepth);
+        _isReplacingSelection = true;
+    }
+
+    private void ScheduleClipboardUpdateRelease()
+    {
+        Task.Run(async () =>
+        {
+            await Task.Delay(ClipboardSuppressionDelayMs).ConfigureAwait(false);
+            if (Interlocked.Decrement(ref _clipboardUpdateDepth) <= 0)
+            {
+                _clipboardUpdateDepth = 0;
+                _isReplacingSelection = false;
+            }
+        });
     }
 
     private static IDataObject? TryGetClipboardSnapshot()
