@@ -12,9 +12,13 @@ public sealed class PopupForm : Form
     private readonly System.Windows.Forms.Timer _timer;
     private readonly Label _messageLabel;
     private readonly FlowLayoutPanel _buttonPanel;
+    private readonly FlowLayoutPanel _loadingPanel;
+    private readonly ProgressBar _loadingIndicator;
+    private readonly Label _loadingLabel;
     private readonly Button _closeButton;
     private readonly List<ContextMenuStrip> _optionMenus = new();
     private TaskCompletionSource<ReplacementPreviewResult>? _confirmationCompletion;
+    private bool _isBusy;
 
     public PopupForm(string message, int autohideMs)
     {
@@ -34,12 +38,13 @@ public sealed class PopupForm : Form
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 2,
+            RowCount = 3,
             BackColor = Color.White,
             Padding = new Padding(20, 18, 20, 20),
         };
 
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
@@ -131,6 +136,38 @@ public sealed class PopupForm : Form
         };
 
         layout.Controls.Add(_buttonPanel, 0, 1);
+
+        _loadingPanel = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Dock = DockStyle.Fill,
+            FlowDirection = FlowDirection.LeftToRight,
+            Margin = new Padding(0, 12, 0, 0),
+            Visible = false
+        };
+
+        _loadingIndicator = new ProgressBar
+        {
+            Style = ProgressBarStyle.Marquee,
+            MarqueeAnimationSpeed = 25,
+            Size = new Size(140, 14),
+            Margin = new Padding(0, 4, 12, 0)
+        };
+
+        _loadingLabel = new Label
+        {
+            AutoSize = true,
+            Text = "Waiting for a response…",
+            Font = new Font("Segoe UI", 9F, FontStyle.Italic),
+            ForeColor = Color.FromArgb(90, 90, 90),
+            Margin = new Padding(0, 2, 0, 0)
+        };
+
+        _loadingPanel.Controls.Add(_loadingIndicator);
+        _loadingPanel.Controls.Add(_loadingLabel);
+
+        layout.Controls.Add(_loadingPanel, 0, 2);
         Controls.Add(layout);
 
         Paint += (s, e) =>
@@ -217,7 +254,7 @@ public sealed class PopupForm : Form
             _buttonPanel.Controls.Add(button);
         }
 
-        _buttonPanel.Visible = true;
+        UpdateActionAreaVisibility();
     }
 
     private async Task RaiseActionInvokedAsync(string actionId, string? optionId)
@@ -261,8 +298,8 @@ public sealed class PopupForm : Form
 
         _optionMenus.Clear();
         _buttonPanel.Controls.Clear();
-        _buttonPanel.Visible = false;
         _buttonPanel.Enabled = true;
+        UpdateActionAreaVisibility();
     }
 
     public Task<ReplacementPreviewResult> ShowReplacementPreviewAsync(
@@ -299,7 +336,7 @@ public sealed class PopupForm : Form
         _buttonPanel.Controls.Add(approveButton);
         _buttonPanel.Controls.Add(copyButton);
         _buttonPanel.Controls.Add(cancelButton);
-        _buttonPanel.Visible = true;
+        UpdateActionAreaVisibility();
 
         PerformLayout();
         return _confirmationCompletion.Task;
@@ -338,10 +375,19 @@ public sealed class PopupForm : Form
         if (IsDisposed)
             return;
 
+        _isBusy = isBusy;
         UseWaitCursor = isBusy;
         Cursor = isBusy ? Cursors.WaitCursor : Cursors.Default;
         _buttonPanel.Enabled = !isBusy;
         _closeButton.Enabled = !isBusy;
+        UpdateActionAreaVisibility();
+    }
+
+    private void UpdateActionAreaVisibility()
+    {
+        _buttonPanel.Visible = !_isBusy && _buttonPanel.Controls.Count > 0;
+        _loadingPanel.Visible = _isBusy;
+        PerformLayout();
     }
 
     public void ShowNear(Point initialLocation)
