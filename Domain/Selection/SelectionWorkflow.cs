@@ -40,7 +40,7 @@ public sealed class SelectionWorkflow
         _activeSelectionText = normalized;
         _lastSelectionText = normalized;
         _lastShownAt = now;
-        context = new SelectionContext(args.Text, normalized, args.SourceWindow, now);
+        context = new SelectionContext(args.Text, normalized, args.SourceWindow, now, args.SelectionRange);
         return true;
     }
 

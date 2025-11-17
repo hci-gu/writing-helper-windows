@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading;
 using System.Windows.Forms;
 using GlobalTextHelper.Domain.Selection;
+using SelectionRange = GlobalTextHelper.Domain.Selection.SelectionRange;
 using GlobalTextHelper.Infrastructure.Clipboard;
 using GlobalTextHelper.Infrastructure.Logging;
 
@@ -87,10 +88,16 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
                 string text = System.Windows.Forms.Clipboard.GetText();
                 if (!string.IsNullOrWhiteSpace(text))
                 {
-                    var hwnd = GetForegroundWindow();
+                    var hwnd = GetFocusedWindowHandle();
+                    if (hwnd == IntPtr.Zero)
+                    {
+                        hwnd = GetForegroundWindow();
+                    }
+
+                    SelectionRange? selectionRange = TryReadSelectionRange(hwnd);
                     SelectionCaptured?.Invoke(
                         this,
-                        new SelectionCapturedEventArgs(text, hwnd, SelectionSource.Clipboard, DateTime.UtcNow));
+                        new SelectionCapturedEventArgs(text, hwnd, SelectionSource.Clipboard, DateTime.UtcNow, selectionRange));
                 }
             }
         }
@@ -124,7 +131,12 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
 
     private void HandleSelectionCapture(IntPtr hwnd)
     {
-        if (!HasNonEmptySelection(hwnd))
+        if (hwnd == IntPtr.Zero)
+        {
+            hwnd = GetFocusedWindowHandle();
+        }
+
+        if (!HasNonEmptySelection(hwnd, out var selectionRange))
         {
             return;
         }
@@ -138,11 +150,17 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
 
         SelectionCaptured?.Invoke(
             this,
-            new SelectionCapturedEventArgs(text, hwnd, SelectionSource.TextSelection, DateTime.UtcNow));
+            new SelectionCapturedEventArgs(text, hwnd, SelectionSource.TextSelection, DateTime.UtcNow, selectionRange));
     }
 
-    private static bool HasNonEmptySelection(IntPtr hwnd)
+    private static bool HasNonEmptySelection(IntPtr hwnd, out SelectionRange? selectionRange)
     {
+        selectionRange = TryReadSelectionRange(hwnd);
+        if (selectionRange is not null)
+        {
+            return true;
+        }
+
         if (hwnd == IntPtr.Zero)
         {
             return true;
@@ -154,20 +172,40 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
             return true;
         }
 
-        if (!IsRichEditClass(className) &&
-            !string.Equals(className, "Edit", StringComparison.OrdinalIgnoreCase))
+        if (IsSupportedTextInput(className))
         {
-            return true;
+            return false;
+        }
+
+        return true;
+    }
+
+    private static SelectionRange? TryReadSelectionRange(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero)
+        {
+            return null;
+        }
+
+        var className = GetWindowClassName(hwnd);
+        if (string.IsNullOrEmpty(className) || !IsSupportedTextInput(className))
+        {
+            return null;
         }
 
         try
         {
             SendMessage(hwnd, EM_GETSEL, out int start, out int end);
-            return start != end;
+            if (start == end)
+            {
+                return null;
+            }
+
+            return new SelectionRange(start, end);
         }
         catch
         {
-            return true;
+            return null;
         }
     }
 
@@ -179,9 +217,38 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
             : builder.ToString();
     }
 
-    private static bool IsRichEditClass(string className)
+    private static bool IsSupportedTextInput(string className) =>
+        string.Equals(className, "Edit", StringComparison.OrdinalIgnoreCase) ||
+        IsRichEditClass(className);
+
+    private static bool IsRichEditClass(string className) =>
+        className.StartsWith("RICHEDIT", StringComparison.OrdinalIgnoreCase);
+
+    private static IntPtr GetFocusedWindowHandle()
     {
-        return className.StartsWith("RICHEDIT", StringComparison.OrdinalIgnoreCase);
+        var foreground = GetForegroundWindow();
+        if (foreground == IntPtr.Zero)
+        {
+            return IntPtr.Zero;
+        }
+
+        uint targetThread = GetWindowThreadProcessId(foreground, out _);
+        if (targetThread == 0)
+        {
+            return foreground;
+        }
+
+        var info = new GUITHREADINFO
+        {
+            cbSize = Marshal.SizeOf<GUITHREADINFO>()
+        };
+
+        if (GetGUIThreadInfo(targetThread, ref info) && info.hwndFocus != IntPtr.Zero)
+        {
+            return info.hwndFocus;
+        }
+
+        return foreground;
     }
 
     public void Dispose()
@@ -242,4 +309,33 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
 
     [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
     private static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool GetGUIThreadInfo(uint idThread, ref GUITHREADINFO lpgui);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct GUITHREADINFO
+    {
+        public int cbSize;
+        public uint flags;
+        public IntPtr hwndActive;
+        public IntPtr hwndFocus;
+        public IntPtr hwndCapture;
+        public IntPtr hwndMenuOwner;
+        public IntPtr hwndMoveSize;
+        public IntPtr hwndCaret;
+        public RECT rcCaret;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct RECT
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
 }

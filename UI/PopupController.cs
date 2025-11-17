@@ -70,7 +70,7 @@ public sealed class PopupController : IDisposable
             return;
         }
 
-        if (_activePopup is null || _currentContext is null)
+        if (_activePopup is null || _activePopup.IsDisposed || _currentContext is null)
         {
             return;
         }
@@ -82,6 +82,10 @@ public sealed class PopupController : IDisposable
         }
 
         var popup = _activePopup;
+        if (!IsPopupStillActive(popup))
+        {
+            return;
+        }
         popup.StopAutoClose();
         popup.UpdateMessage($"Running {action.DisplayName}…");
         popup.SetBusyState(true);
@@ -89,6 +93,11 @@ public sealed class PopupController : IDisposable
         try
         {
             var result = await action.ExecuteAsync(_currentContext.OriginalText, args.OptionId, CancellationToken.None);
+            if (!IsPopupStillActive(popup))
+            {
+                return;
+            }
+
             if (!result.Success)
             {
                 popup.SetBusyState(false);
@@ -106,22 +115,29 @@ public sealed class PopupController : IDisposable
             }
 
             popup.SetBusyState(false);
+            if (!IsPopupStillActive(popup))
+            {
+                return;
+            }
+
             var previewResult = await popup.ShowReplacementPreviewAsync(
                 result.ReplacementText,
                 result.PreviewAcceptLabel ?? "Use Replacement");
+            if (!IsPopupStillActive(popup))
+            {
+                return;
+            }
 
             popup.ClearActionButtons();
+            if (!IsPopupStillActive(popup))
+            {
+                return;
+            }
 
             switch (previewResult)
             {
                 case ReplacementPreviewResult.Accept:
-                    await _clipboardService.ReplaceSelectionAsync(
-                        _currentContext.OriginalText,
-                        result.ReplacementText,
-                        _currentContext.SourceWindow,
-                        CancellationToken.None);
-                    popup.UpdateMessage(result.SuccessMessage ?? "Replacement inserted.");
-                    popup.RestartAutoClose(1500);
+                    await InsertReplacementAndClosePopupAsync(result.ReplacementText);
                     break;
                 case ReplacementPreviewResult.CopyToClipboard:
                     await _clipboardService.CopyToClipboardAsync(result.ReplacementText, CancellationToken.None);
@@ -136,10 +152,60 @@ public sealed class PopupController : IDisposable
         }
         catch (Exception ex)
         {
-            popup.SetBusyState(false);
+            if (IsPopupStillActive(popup))
+            {
+                popup.SetBusyState(false);
+                popup.UpdateMessage("Unable to complete the selected action.");
+                popup.RestartAutoClose(4000);
+            }
+
             _logger.LogError($"Action '{action.Id}' failed", ex);
-            popup.UpdateMessage("Unable to complete the selected action.");
-            popup.RestartAutoClose(4000);
+        }
+    }
+
+    private bool IsPopupStillActive(PopupForm popup)
+    {
+        return ReferenceEquals(_activePopup, popup) && !popup.IsDisposed;
+    }
+
+    private async Task InsertReplacementAndClosePopupAsync(string replacementText)
+    {
+        if (_currentContext is null)
+        {
+            return;
+        }
+
+        var popup = _activePopup;
+        if (popup is null || popup.IsDisposed)
+        {
+            return;
+        }
+
+        popup.Hide();
+
+        try
+        {
+            await _clipboardService.ReplaceSelectionAsync(
+                _currentContext.OriginalText,
+                replacementText,
+                _currentContext.SourceWindow,
+                _currentContext.SelectionRange,
+                CancellationToken.None);
+
+            _currentContext = null;
+            popup.Close();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError("Failed to replace the original selection", ex);
+
+            if (!popup.IsDisposed)
+            {
+                popup.Show();
+                popup.SetBusyState(false);
+                popup.UpdateMessage("Unable to insert the replacement text.");
+                popup.RestartAutoClose(4000);
+            }
         }
     }
 
