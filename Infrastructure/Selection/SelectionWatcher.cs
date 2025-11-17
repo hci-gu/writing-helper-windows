@@ -26,6 +26,9 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
     private WinEventDelegate? _winEventDelegate;
     private IntPtr _winEventHook = IntPtr.Zero;
     private bool _disposed;
+    private SelectionRange? _lastSelectionRange;
+    private IntPtr _lastSelectionWindow;
+    private DateTime _lastSelectionTimestamp;
 
     public SelectionWatcher(IClipboardService clipboardService, ILogger logger, ISynchronizeInvoke dispatcher)
     {
@@ -89,9 +92,10 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
                 if (!string.IsNullOrWhiteSpace(text))
                 {
                     var hwnd = GetForegroundWindow();
+                    var selectionRange = TryGetLastSelectionRange(hwnd);
                     SelectionCaptured?.Invoke(
                         this,
-                        new SelectionCapturedEventArgs(text, hwnd, SelectionSource.Clipboard, DateTime.UtcNow, null));
+                        new SelectionCapturedEventArgs(text, hwnd, SelectionSource.Clipboard, DateTime.UtcNow, selectionRange));
                 }
             }
         }
@@ -130,6 +134,8 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
             return;
         }
 
+        RememberSelection(hwnd, selectionRange);
+
         var task = _clipboardService.CaptureSelectionAsync(hwnd, CancellationToken.None);
         string? text = task.GetAwaiter().GetResult();
         if (string.IsNullOrWhiteSpace(text))
@@ -140,6 +146,38 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
         SelectionCaptured?.Invoke(
             this,
             new SelectionCapturedEventArgs(text, hwnd, SelectionSource.TextSelection, DateTime.UtcNow, selectionRange));
+    }
+
+    private void RememberSelection(IntPtr hwnd, SelectionRange? selectionRange)
+    {
+        if (selectionRange is null)
+        {
+            return;
+        }
+
+        _lastSelectionWindow = hwnd;
+        _lastSelectionRange = selectionRange;
+        _lastSelectionTimestamp = DateTime.UtcNow;
+    }
+
+    private SelectionRange? TryGetLastSelectionRange(IntPtr hwnd)
+    {
+        if (_lastSelectionRange is null || hwnd == IntPtr.Zero)
+        {
+            return null;
+        }
+
+        if (hwnd != _lastSelectionWindow)
+        {
+            return null;
+        }
+
+        if ((DateTime.UtcNow - _lastSelectionTimestamp) > TimeSpan.FromSeconds(5))
+        {
+            return null;
+        }
+
+        return _lastSelectionRange;
     }
 
     private static bool ShouldCaptureSelection(IntPtr hwnd, out SelectionRange? selectionRange)
