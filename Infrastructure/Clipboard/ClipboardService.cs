@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using GlobalTextHelper.Domain.Selection;
+using SelectionRange = GlobalTextHelper.Domain.Selection.SelectionRange;
 
 namespace GlobalTextHelper.Infrastructure.Clipboard;
 
