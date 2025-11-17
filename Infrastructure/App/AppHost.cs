@@ -23,6 +23,7 @@ internal sealed class AppHost : ApplicationContext
     private readonly ILogger _logger;
     private readonly IClipboardService _clipboardService;
     private readonly IReadOnlyList<ITextAction> _actions;
+    private bool _isEditorOpen;
 
     public AppHost()
     {
@@ -74,6 +75,11 @@ internal sealed class AppHost : ApplicationContext
 
     private void OnSelectionCaptured(object? sender, SelectionCapturedEventArgs e)
     {
+        if (_isEditorOpen)
+        {
+            return;
+        }
+
         if (!_workflow.TryHandleSelection(e, out var context) || context is null)
         {
             return;
@@ -135,6 +141,15 @@ internal sealed class AppHost : ApplicationContext
     private void OnEditorRequested(object? sender, EventArgs e)
     {
         using var editor = new EditorForm(_actions, _logger);
-        editor.ShowDialog(_mainForm);
+
+        try
+        {
+            _isEditorOpen = true;
+            editor.ShowDialog(_mainForm);
+        }
+        finally
+        {
+            _isEditorOpen = false;
+        }
     }
 }
