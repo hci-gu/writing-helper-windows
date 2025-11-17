@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading;
 using System.Windows.Forms;
 using GlobalTextHelper.Domain.Selection;
+using SelectionRange = GlobalTextHelper.Domain.Selection.SelectionRange;
 using GlobalTextHelper.Infrastructure.Clipboard;
 using GlobalTextHelper.Infrastructure.Logging;
 
