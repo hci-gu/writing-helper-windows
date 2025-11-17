@@ -88,6 +88,11 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
                 if (!string.IsNullOrWhiteSpace(text))
                 {
                     var hwnd = GetForegroundWindow();
+                    if (IsOwnWindow(hwnd))
+                    {
+                        return;
+                    }
+
                     SelectionCaptured?.Invoke(
                         this,
                         new SelectionCapturedEventArgs(text, hwnd, SelectionSource.Clipboard, DateTime.UtcNow));
@@ -124,7 +129,7 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
 
     private void HandleSelectionCapture(IntPtr hwnd)
     {
-        if (!HasNonEmptySelection(hwnd))
+        if (IsOwnWindow(hwnd) || !HasNonEmptySelection(hwnd))
         {
             return;
         }
@@ -169,6 +174,17 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
         {
             return true;
         }
+    }
+
+    private static bool IsOwnWindow(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        _ = GetWindowThreadProcessId(hwnd, out uint processId);
+        return processId == GetCurrentProcessId();
     }
 
     private static string GetWindowClassName(IntPtr hwnd)
@@ -236,6 +252,12 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
 
     [DllImport("user32.dll")]
     private static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+    [DllImport("kernel32.dll")]
+    private static extern uint GetCurrentProcessId();
 
     [DllImport("user32.dll", CharSet = CharSet.Auto)]
     private static extern IntPtr SendMessage(IntPtr hWnd, int Msg, out int wParam, out int lParam);
