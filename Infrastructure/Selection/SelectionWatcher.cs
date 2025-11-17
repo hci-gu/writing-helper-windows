@@ -93,9 +93,10 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
                         hwnd = GetForegroundWindow();
                     }
 
+                    SelectionRange? selectionRange = TryReadSelectionRange(hwnd);
                     SelectionCaptured?.Invoke(
                         this,
-                        new SelectionCapturedEventArgs(text, hwnd, SelectionSource.Clipboard, DateTime.UtcNow));
+                        new SelectionCapturedEventArgs(text, hwnd, SelectionSource.Clipboard, DateTime.UtcNow, selectionRange));
                 }
             }
         }
@@ -134,7 +135,7 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
             hwnd = GetFocusedWindowHandle();
         }
 
-        if (!HasNonEmptySelection(hwnd))
+        if (!HasNonEmptySelection(hwnd, out var selectionRange))
         {
             return;
         }
@@ -148,11 +149,17 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
 
         SelectionCaptured?.Invoke(
             this,
-            new SelectionCapturedEventArgs(text, hwnd, SelectionSource.TextSelection, DateTime.UtcNow));
+            new SelectionCapturedEventArgs(text, hwnd, SelectionSource.TextSelection, DateTime.UtcNow, selectionRange));
     }
 
-    private static bool HasNonEmptySelection(IntPtr hwnd)
+    private static bool HasNonEmptySelection(IntPtr hwnd, out SelectionRange? selectionRange)
     {
+        selectionRange = TryReadSelectionRange(hwnd);
+        if (selectionRange is not null)
+        {
+            return true;
+        }
+
         if (hwnd == IntPtr.Zero)
         {
             return true;
@@ -164,20 +171,40 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
             return true;
         }
 
-        if (!IsRichEditClass(className) &&
-            !string.Equals(className, "Edit", StringComparison.OrdinalIgnoreCase))
+        if (IsSupportedTextInput(className))
         {
-            return true;
+            return false;
+        }
+
+        return true;
+    }
+
+    private static SelectionRange? TryReadSelectionRange(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero)
+        {
+            return null;
+        }
+
+        var className = GetWindowClassName(hwnd);
+        if (string.IsNullOrEmpty(className) || !IsSupportedTextInput(className))
+        {
+            return null;
         }
 
         try
         {
             SendMessage(hwnd, EM_GETSEL, out int start, out int end);
-            return start != end;
+            if (start == end)
+            {
+                return null;
+            }
+
+            return new SelectionRange(start, end);
         }
         catch
         {
-            return true;
+            return null;
         }
     }
 
@@ -189,10 +216,12 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
             : builder.ToString();
     }
 
-    private static bool IsRichEditClass(string className)
-    {
-        return className.StartsWith("RICHEDIT", StringComparison.OrdinalIgnoreCase);
-    }
+    private static bool IsSupportedTextInput(string className) =>
+        string.Equals(className, "Edit", StringComparison.OrdinalIgnoreCase) ||
+        IsRichEditClass(className);
+
+    private static bool IsRichEditClass(string className) =>
+        className.StartsWith("RICHEDIT", StringComparison.OrdinalIgnoreCase);
 
     private static IntPtr GetFocusedWindowHandle()
     {

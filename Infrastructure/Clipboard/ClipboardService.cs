@@ -1,8 +1,10 @@
 using System;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using GlobalTextHelper.Domain.Selection;
 
 namespace GlobalTextHelper.Infrastructure.Clipboard;
 
@@ -11,7 +13,12 @@ public interface IClipboardService
     bool IsReadingSelection { get; }
     bool IsReplacingSelection { get; }
     Task<string?> CaptureSelectionAsync(IntPtr sourceWindow, CancellationToken cancellationToken);
-    Task ReplaceSelectionAsync(string originalText, string replacementText, IntPtr targetWindow, CancellationToken cancellationToken);
+    Task ReplaceSelectionAsync(
+        string originalText,
+        string replacementText,
+        IntPtr targetWindow,
+        SelectionRange? selectionRange,
+        CancellationToken cancellationToken);
     Task CopyToClipboardAsync(string text, CancellationToken cancellationToken);
 }
 
@@ -31,10 +38,15 @@ public sealed class ClipboardService : IClipboardService
         return Task.FromResult(CaptureSelectionInternal(sourceWindow));
     }
 
-    public Task ReplaceSelectionAsync(string originalText, string replacementText, IntPtr targetWindow, CancellationToken cancellationToken)
+    public Task ReplaceSelectionAsync(
+        string originalText,
+        string replacementText,
+        IntPtr targetWindow,
+        SelectionRange? selectionRange,
+        CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        ReplaceSelectionInternal(originalText, replacementText, targetWindow);
+        ReplaceSelectionInternal(originalText, replacementText, targetWindow, selectionRange);
         return Task.CompletedTask;
     }
 
@@ -91,7 +103,11 @@ public sealed class ClipboardService : IClipboardService
         return null;
     }
 
-    private void ReplaceSelectionInternal(string originalText, string replacementText, IntPtr targetWindow)
+    private void ReplaceSelectionInternal(
+        string originalText,
+        string replacementText,
+        IntPtr targetWindow,
+        SelectionRange? selectionRange)
     {
         if (string.IsNullOrWhiteSpace(replacementText))
         {
@@ -120,6 +136,12 @@ public sealed class ClipboardService : IClipboardService
         }
 
         FocusTargetWindow(targetWindow);
+
+        if (selectionRange is SelectionRange range)
+        {
+            RestoreSelection(targetWindow, range);
+        }
+
         SendCtrlShortcut(Keys.V);
 
         try
@@ -282,6 +304,53 @@ public sealed class ClipboardService : IClipboardService
         }
     }
 
+    private void RestoreSelection(IntPtr targetWindow, SelectionRange selectionRange)
+    {
+        if (targetWindow == IntPtr.Zero || selectionRange.Length <= 0)
+        {
+            return;
+        }
+
+        var className = GetWindowClassName(targetWindow);
+        if (string.IsNullOrEmpty(className) || !IsSupportedTextInput(className))
+        {
+            return;
+        }
+
+        try
+        {
+            SendMessage(targetWindow, EM_SETSEL, (IntPtr)selectionRange.Start, (IntPtr)selectionRange.End);
+        }
+        catch
+        {
+            // Ignore failures and allow paste attempt to continue.
+        }
+    }
+
+    private static string GetWindowClassName(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero)
+        {
+            return string.Empty;
+        }
+
+        var builder = new StringBuilder(256);
+        return GetClassName(hwnd, builder, builder.Capacity) == 0
+            ? string.Empty
+            : builder.ToString();
+    }
+
+    private static bool IsSupportedTextInput(string className)
+    {
+        if (string.IsNullOrEmpty(className))
+        {
+            return false;
+        }
+
+        return string.Equals(className, "Edit", StringComparison.OrdinalIgnoreCase) ||
+               className.StartsWith("RICHEDIT", StringComparison.OrdinalIgnoreCase);
+    }
+
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr hWnd);
 
@@ -303,9 +372,16 @@ public sealed class ClipboardService : IClipboardService
     [DllImport("user32.dll", SetLastError = true)]
     private static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
 
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    private static extern IntPtr SendMessage(IntPtr hWnd, int Msg, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+    private static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
+
     private const uint INPUT_KEYBOARD = 1;
     private const uint KEYEVENTF_KEYUP = 0x0002;
     private const uint GA_ROOT = 2;
+    private const int EM_SETSEL = 0x00B1;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct INPUT
