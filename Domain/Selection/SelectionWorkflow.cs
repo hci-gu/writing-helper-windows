@@ -7,7 +7,7 @@ public sealed class SelectionWorkflow
     private readonly TimeSpan _dedupeWindow = TimeSpan.FromSeconds(1.5);
     private string? _lastSelectionText;
     private DateTime _lastShownAt;
-    private bool _selectionActive;
+    private string? _activeSelectionText;
 
     public bool TryHandleSelection(SelectionCapturedEventArgs args, out SelectionContext? context)
     {
@@ -17,13 +17,14 @@ public sealed class SelectionWorkflow
             return false;
         }
 
-        if (_selectionActive)
+        var normalized = Normalize(args.Text);
+        if (string.IsNullOrWhiteSpace(normalized))
         {
             return false;
         }
 
-        var normalized = Normalize(args.Text);
-        if (string.IsNullOrWhiteSpace(normalized))
+        if (!string.IsNullOrEmpty(_activeSelectionText) &&
+            string.Equals(normalized, _activeSelectionText, StringComparison.Ordinal))
         {
             return false;
         }
@@ -36,7 +37,7 @@ public sealed class SelectionWorkflow
             return false;
         }
 
-        _selectionActive = true;
+        _activeSelectionText = normalized;
         _lastSelectionText = normalized;
         _lastShownAt = now;
         context = new SelectionContext(args.Text, normalized, args.SourceWindow, now);
@@ -45,7 +46,7 @@ public sealed class SelectionWorkflow
 
     public void MarkSelectionHandled()
     {
-        _selectionActive = false;
+        _activeSelectionText = null;
     }
 
     private static string Normalize(string text)
