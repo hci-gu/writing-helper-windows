@@ -119,6 +119,7 @@ public sealed class PopupController : IDisposable
                         _currentContext.OriginalText,
                         result.ReplacementText,
                         _currentContext.SourceWindow,
+                        _currentContext.SelectionRange,
                         CancellationToken.None);
                     popup.UpdateMessage(result.SuccessMessage ?? "Replacement inserted.");
                     popup.RestartAutoClose(1500);

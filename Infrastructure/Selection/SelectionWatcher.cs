@@ -90,7 +90,7 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
                     var hwnd = GetForegroundWindow();
                     SelectionCaptured?.Invoke(
                         this,
-                        new SelectionCapturedEventArgs(text, hwnd, SelectionSource.Clipboard, DateTime.UtcNow));
+                        new SelectionCapturedEventArgs(text, hwnd, SelectionSource.Clipboard, DateTime.UtcNow, null));
                 }
             }
         }
@@ -124,7 +124,7 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
 
     private void HandleSelectionCapture(IntPtr hwnd)
     {
-        if (!HasNonEmptySelection(hwnd))
+        if (!ShouldCaptureSelection(hwnd, out var selectionRange))
         {
             return;
         }
@@ -138,11 +138,12 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
 
         SelectionCaptured?.Invoke(
             this,
-            new SelectionCapturedEventArgs(text, hwnd, SelectionSource.TextSelection, DateTime.UtcNow));
+            new SelectionCapturedEventArgs(text, hwnd, SelectionSource.TextSelection, DateTime.UtcNow, selectionRange));
     }
 
-    private static bool HasNonEmptySelection(IntPtr hwnd)
+    private static bool ShouldCaptureSelection(IntPtr hwnd, out SelectionRange? selectionRange)
     {
+        selectionRange = null;
         if (hwnd == IntPtr.Zero)
         {
             return true;
@@ -163,7 +164,13 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
         try
         {
             SendMessage(hwnd, EM_GETSEL, out int start, out int end);
-            return start != end;
+            if (start == end)
+            {
+                return false;
+            }
+
+            selectionRange = new SelectionRange(start, end);
+            return true;
         }
         catch
         {

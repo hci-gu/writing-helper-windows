@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using GlobalTextHelper.Domain.Selection;
 
 namespace GlobalTextHelper.Infrastructure.Clipboard;
 
@@ -11,7 +12,12 @@ public interface IClipboardService
     bool IsReadingSelection { get; }
     bool IsReplacingSelection { get; }
     Task<string?> CaptureSelectionAsync(IntPtr sourceWindow, CancellationToken cancellationToken);
-    Task ReplaceSelectionAsync(string originalText, string replacementText, IntPtr targetWindow, CancellationToken cancellationToken);
+    Task ReplaceSelectionAsync(
+        string originalText,
+        string replacementText,
+        IntPtr targetWindow,
+        SelectionRange? selectionRange,
+        CancellationToken cancellationToken);
     Task CopyToClipboardAsync(string text, CancellationToken cancellationToken);
 }
 
@@ -31,10 +37,15 @@ public sealed class ClipboardService : IClipboardService
         return Task.FromResult(CaptureSelectionInternal(sourceWindow));
     }
 
-    public Task ReplaceSelectionAsync(string originalText, string replacementText, IntPtr targetWindow, CancellationToken cancellationToken)
+    public Task ReplaceSelectionAsync(
+        string originalText,
+        string replacementText,
+        IntPtr targetWindow,
+        SelectionRange? selectionRange,
+        CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        ReplaceSelectionInternal(originalText, replacementText, targetWindow);
+        ReplaceSelectionInternal(originalText, replacementText, targetWindow, selectionRange);
         return Task.CompletedTask;
     }
 
@@ -91,7 +102,7 @@ public sealed class ClipboardService : IClipboardService
         return null;
     }
 
-    private void ReplaceSelectionInternal(string originalText, string replacementText, IntPtr targetWindow)
+    private void ReplaceSelectionInternal(string originalText, string replacementText, IntPtr targetWindow, SelectionRange? selectionRange)
     {
         if (string.IsNullOrWhiteSpace(replacementText))
         {
@@ -122,6 +133,10 @@ public sealed class ClipboardService : IClipboardService
         if (targetWindow != IntPtr.Zero)
         {
             SetForegroundWindow(targetWindow);
+            if (selectionRange is { IsEmpty: false })
+            {
+                TryRestoreSelection(targetWindow, selectionRange.Value);
+            }
         }
 
         SendCtrlShortcut(Keys.V);
@@ -166,6 +181,18 @@ public sealed class ClipboardService : IClipboardService
         finally
         {
             ScheduleClipboardUpdateRelease();
+        }
+    }
+
+    private static void TryRestoreSelection(IntPtr targetWindow, SelectionRange selectionRange)
+    {
+        try
+        {
+            SendMessage(targetWindow, EM_SETSEL, (IntPtr)selectionRange.Start, (IntPtr)selectionRange.End);
+        }
+        catch
+        {
+            // Best effort. If the control doesn't support EM_SETSEL the paste will still occur at the caret.
         }
     }
 
@@ -253,11 +280,15 @@ public sealed class ClipboardService : IClipboardService
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr hWnd);
 
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+
     [DllImport("user32.dll", SetLastError = true)]
     private static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
 
     private const uint INPUT_KEYBOARD = 1;
     private const uint KEYEVENTF_KEYUP = 0x0002;
+    private const int EM_SETSEL = 0x00B1;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct INPUT
