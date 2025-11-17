@@ -106,27 +106,33 @@ public sealed class PopupController : IDisposable
             }
 
             popup.SetBusyState(false);
-            bool approved = await popup.ShowReplacementPreviewAsync(
+            var previewResult = await popup.ShowReplacementPreviewAsync(
                 result.ReplacementText,
                 result.PreviewAcceptLabel ?? "Use Replacement");
 
             popup.ClearActionButtons();
 
-            if (approved)
+            switch (previewResult)
             {
-                await _clipboardService.ReplaceSelectionAsync(
-                    _currentContext.OriginalText,
-                    result.ReplacementText,
-                    _currentContext.SourceWindow,
-                    CancellationToken.None);
-                popup.UpdateMessage(result.SuccessMessage ?? "Replacement inserted.");
+                case ReplacementPreviewResult.Accept:
+                    await _clipboardService.ReplaceSelectionAsync(
+                        _currentContext.OriginalText,
+                        result.ReplacementText,
+                        _currentContext.SourceWindow,
+                        CancellationToken.None);
+                    popup.UpdateMessage(result.SuccessMessage ?? "Replacement inserted.");
+                    popup.RestartAutoClose(1500);
+                    break;
+                case ReplacementPreviewResult.CopyToClipboard:
+                    await _clipboardService.CopyToClipboardAsync(result.ReplacementText, CancellationToken.None);
+                    popup.UpdateMessage("Replacement copied to clipboard.");
+                    popup.RestartAutoClose(1500);
+                    break;
+                default:
+                    popup.UpdateMessage("Replacement canceled.");
+                    popup.RestartAutoClose(1500);
+                    break;
             }
-            else
-            {
-                popup.UpdateMessage("Replacement canceled.");
-            }
-
-            popup.RestartAutoClose(1500);
         }
         catch (Exception ex)
         {

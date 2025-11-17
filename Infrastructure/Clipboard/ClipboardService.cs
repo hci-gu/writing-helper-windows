@@ -12,6 +12,7 @@ public interface IClipboardService
     bool IsReplacingSelection { get; }
     Task<string?> CaptureSelectionAsync(IntPtr sourceWindow, CancellationToken cancellationToken);
     Task ReplaceSelectionAsync(string originalText, string replacementText, IntPtr targetWindow, CancellationToken cancellationToken);
+    Task CopyToClipboardAsync(string text, CancellationToken cancellationToken);
 }
 
 public sealed class ClipboardService : IClipboardService
@@ -32,6 +33,13 @@ public sealed class ClipboardService : IClipboardService
     {
         cancellationToken.ThrowIfCancellationRequested();
         ReplaceSelectionInternal(originalText, replacementText, targetWindow);
+        return Task.CompletedTask;
+    }
+
+    public Task CopyToClipboardAsync(string text, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        CopyToClipboardInternal(text);
         return Task.CompletedTask;
     }
 
@@ -131,6 +139,28 @@ public sealed class ClipboardService : IClipboardService
         catch (Exception)
         {
             // Allow the system clipboard to recover naturally.
+        }
+        finally
+        {
+            _isReplacingSelection = false;
+        }
+    }
+
+    private void CopyToClipboardInternal(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            throw new InvalidOperationException("Clipboard text cannot be empty.");
+        }
+
+        _isReplacingSelection = true;
+        try
+        {
+            System.Windows.Forms.Clipboard.SetText(text);
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException("Unable to set clipboard text: " + ex.Message);
         }
         finally
         {

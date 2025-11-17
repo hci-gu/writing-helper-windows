@@ -14,7 +14,7 @@ public sealed class PopupForm : Form
     private readonly FlowLayoutPanel _buttonPanel;
     private readonly Button _closeButton;
     private readonly List<ContextMenuStrip> _optionMenus = new();
-    private TaskCompletionSource<bool>? _confirmationCompletion;
+    private TaskCompletionSource<ReplacementPreviewResult>? _confirmationCompletion;
 
     public PopupForm(string message, int autohideMs)
     {
@@ -170,7 +170,7 @@ public sealed class PopupForm : Form
     {
         if (_confirmationCompletion is not null)
         {
-            CompleteConfirmation(false);
+            CompleteConfirmation(ReplacementPreviewResult.Cancel);
         }
 
         base.OnFormClosing(e);
@@ -265,7 +265,11 @@ public sealed class PopupForm : Form
         _buttonPanel.Enabled = true;
     }
 
-    public Task<bool> ShowReplacementPreviewAsync(string replacementText, string approveButtonText, string cancelButtonText = "Cancel")
+    public Task<ReplacementPreviewResult> ShowReplacementPreviewAsync(
+        string replacementText,
+        string approveButtonText,
+        string copyButtonText = "Copy to Clipboard",
+        string cancelButtonText = "Cancel")
     {
         if (IsDisposed)
             throw new ObjectDisposedException(nameof(PopupForm));
@@ -273,7 +277,7 @@ public sealed class PopupForm : Form
         if (_confirmationCompletion is not null)
             throw new InvalidOperationException("A confirmation is already in progress.");
 
-        _confirmationCompletion = new TaskCompletionSource<bool>();
+        _confirmationCompletion = new TaskCompletionSource<ReplacementPreviewResult>();
 
         _messageLabel.MaximumSize = new Size(480, 0);
         UpdateMessage(replacementText);
@@ -283,12 +287,17 @@ public sealed class PopupForm : Form
 
         var cancelButton = CreateSecondaryActionButton(cancelButtonText);
         cancelButton.Margin = new Padding(8, 0, 0, 0);
-        cancelButton.Click += (s, e) => CompleteConfirmation(false);
+        cancelButton.Click += (s, e) => CompleteConfirmation(ReplacementPreviewResult.Cancel);
 
         var approveButton = CreatePrimaryActionButton(approveButtonText);
-        approveButton.Click += (s, e) => CompleteConfirmation(true);
+        approveButton.Click += (s, e) => CompleteConfirmation(ReplacementPreviewResult.Accept);
+
+        var copyButton = CreateSecondaryActionButton(copyButtonText);
+        copyButton.Margin = new Padding(8, 0, 0, 0);
+        copyButton.Click += (s, e) => CompleteConfirmation(ReplacementPreviewResult.CopyToClipboard);
 
         _buttonPanel.Controls.Add(approveButton);
+        _buttonPanel.Controls.Add(copyButton);
         _buttonPanel.Controls.Add(cancelButton);
         _buttonPanel.Visible = true;
 
@@ -296,13 +305,13 @@ public sealed class PopupForm : Form
         return _confirmationCompletion.Task;
     }
 
-    private void CompleteConfirmation(bool accepted)
+    private void CompleteConfirmation(ReplacementPreviewResult result)
     {
         if (_confirmationCompletion is null)
             return;
 
         _buttonPanel.Enabled = false;
-        _confirmationCompletion.TrySetResult(accepted);
+        _confirmationCompletion.TrySetResult(result);
         _confirmationCompletion = null;
     }
 
@@ -395,4 +404,11 @@ public sealed class PopupForm : Form
         button.FlatAppearance.BorderSize = 1;
         return button;
     }
+}
+
+public enum ReplacementPreviewResult
+{
+    Accept,
+    CopyToClipboard,
+    Cancel
 }
