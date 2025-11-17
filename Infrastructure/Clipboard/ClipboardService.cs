@@ -12,12 +12,15 @@ public interface IClipboardService
     bool IsReplacingSelection { get; }
     Task<string?> CaptureSelectionAsync(IntPtr sourceWindow, CancellationToken cancellationToken);
     Task ReplaceSelectionAsync(string originalText, string replacementText, IntPtr targetWindow, CancellationToken cancellationToken);
+    Task CopyToClipboardAsync(string text, CancellationToken cancellationToken);
 }
 
 public sealed class ClipboardService : IClipboardService
 {
+    private const int ClipboardSuppressionDelayMs = 200;
     private volatile bool _isReadingSelection;
     private volatile bool _isReplacingSelection;
+    private int _clipboardUpdateDepth;
 
     public bool IsReadingSelection => _isReadingSelection;
     public bool IsReplacingSelection => _isReplacingSelection;
@@ -32,6 +35,13 @@ public sealed class ClipboardService : IClipboardService
     {
         cancellationToken.ThrowIfCancellationRequested();
         ReplaceSelectionInternal(originalText, replacementText, targetWindow);
+        return Task.CompletedTask;
+    }
+
+    public Task CopyToClipboardAsync(string text, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        CopyToClipboardInternal(text);
         return Task.CompletedTask;
     }
 
@@ -88,7 +98,7 @@ public sealed class ClipboardService : IClipboardService
             throw new InvalidOperationException("Replacement text cannot be empty.");
         }
 
-        _isReplacingSelection = true;
+        BeginClipboardUpdate();
 
         IDataObject? snapshot = null;
         try
@@ -106,7 +116,6 @@ public sealed class ClipboardService : IClipboardService
         }
         catch (Exception ex)
         {
-            _isReplacingSelection = false;
             throw new InvalidOperationException("Unable to set clipboard text: " + ex.Message);
         }
 
@@ -134,8 +143,49 @@ public sealed class ClipboardService : IClipboardService
         }
         finally
         {
-            _isReplacingSelection = false;
+            ScheduleClipboardUpdateRelease();
         }
+    }
+
+    private void CopyToClipboardInternal(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            throw new InvalidOperationException("Clipboard text cannot be empty.");
+        }
+
+        BeginClipboardUpdate();
+        try
+        {
+            System.Windows.Forms.Clipboard.SetText(text);
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException("Unable to set clipboard text: " + ex.Message);
+        }
+        finally
+        {
+            ScheduleClipboardUpdateRelease();
+        }
+    }
+
+    private void BeginClipboardUpdate()
+    {
+        Interlocked.Increment(ref _clipboardUpdateDepth);
+        _isReplacingSelection = true;
+    }
+
+    private void ScheduleClipboardUpdateRelease()
+    {
+        Task.Run(async () =>
+        {
+            await Task.Delay(ClipboardSuppressionDelayMs).ConfigureAwait(false);
+            if (Interlocked.Decrement(ref _clipboardUpdateDepth) <= 0)
+            {
+                _clipboardUpdateDepth = 0;
+                _isReplacingSelection = false;
+            }
+        });
     }
 
     private static IDataObject? TryGetClipboardSnapshot()
