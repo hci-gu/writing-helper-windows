@@ -87,7 +87,12 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
                 string text = System.Windows.Forms.Clipboard.GetText();
                 if (!string.IsNullOrWhiteSpace(text))
                 {
-                    var hwnd = GetForegroundWindow();
+                    var hwnd = GetFocusedWindowHandle();
+                    if (hwnd == IntPtr.Zero)
+                    {
+                        hwnd = GetForegroundWindow();
+                    }
+
                     SelectionCaptured?.Invoke(
                         this,
                         new SelectionCapturedEventArgs(text, hwnd, SelectionSource.Clipboard, DateTime.UtcNow));
@@ -124,6 +129,11 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
 
     private void HandleSelectionCapture(IntPtr hwnd)
     {
+        if (hwnd == IntPtr.Zero)
+        {
+            hwnd = GetFocusedWindowHandle();
+        }
+
         if (!HasNonEmptySelection(hwnd))
         {
             return;
@@ -184,6 +194,33 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
         return className.StartsWith("RICHEDIT", StringComparison.OrdinalIgnoreCase);
     }
 
+    private static IntPtr GetFocusedWindowHandle()
+    {
+        var foreground = GetForegroundWindow();
+        if (foreground == IntPtr.Zero)
+        {
+            return IntPtr.Zero;
+        }
+
+        uint targetThread = GetWindowThreadProcessId(foreground, out _);
+        if (targetThread == 0)
+        {
+            return foreground;
+        }
+
+        var info = new GUITHREADINFO
+        {
+            cbSize = Marshal.SizeOf<GUITHREADINFO>()
+        };
+
+        if (GetGUIThreadInfo(targetThread, ref info) && info.hwndFocus != IntPtr.Zero)
+        {
+            return info.hwndFocus;
+        }
+
+        return foreground;
+    }
+
     public void Dispose()
     {
         if (_disposed)
@@ -242,4 +279,33 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
 
     [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
     private static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool GetGUIThreadInfo(uint idThread, ref GUITHREADINFO lpgui);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct GUITHREADINFO
+    {
+        public int cbSize;
+        public uint flags;
+        public IntPtr hwndActive;
+        public IntPtr hwndFocus;
+        public IntPtr hwndCapture;
+        public IntPtr hwndMenuOwner;
+        public IntPtr hwndMoveSize;
+        public IntPtr hwndCaret;
+        public RECT rcCaret;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct RECT
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
 }

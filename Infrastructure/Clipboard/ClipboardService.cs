@@ -119,11 +119,7 @@ public sealed class ClipboardService : IClipboardService
             throw new InvalidOperationException("Unable to set clipboard text: " + ex.Message);
         }
 
-        if (targetWindow != IntPtr.Zero)
-        {
-            SetForegroundWindow(targetWindow);
-        }
-
+        FocusTargetWindow(targetWindow);
         SendCtrlShortcut(Keys.V);
 
         try
@@ -250,14 +246,66 @@ public sealed class ClipboardService : IClipboardService
         };
     }
 
+    private void FocusTargetWindow(IntPtr targetWindow)
+    {
+        if (targetWindow == IntPtr.Zero)
+        {
+            return;
+        }
+
+        IntPtr root = GetAncestor(targetWindow, GA_ROOT);
+        if (root == IntPtr.Zero)
+        {
+            root = targetWindow;
+        }
+
+        uint currentThread = GetCurrentThreadId();
+        uint targetThread = GetWindowThreadProcessId(targetWindow, out _);
+        bool attached = false;
+
+        try
+        {
+            if (targetThread != 0 && currentThread != targetThread)
+            {
+                attached = AttachThreadInput(currentThread, targetThread, true);
+            }
+
+            SetForegroundWindow(root);
+            SetFocus(targetWindow);
+        }
+        finally
+        {
+            if (attached)
+            {
+                AttachThreadInput(currentThread, targetThread, false);
+            }
+        }
+    }
+
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr SetFocus(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetAncestor(IntPtr hWnd, uint gaFlags);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+    [DllImport("user32.dll")]
+    private static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+
+    [DllImport("kernel32.dll")]
+    private static extern uint GetCurrentThreadId();
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
 
     private const uint INPUT_KEYBOARD = 1;
     private const uint KEYEVENTF_KEYUP = 0x0002;
+    private const uint GA_ROOT = 2;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct INPUT
