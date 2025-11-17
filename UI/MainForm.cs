@@ -19,6 +19,7 @@ public sealed class MainForm : Form
         FormBorderStyle = FormBorderStyle.FixedToolWindow;
 
         _menu = new ContextMenuStrip();
+        _menu.Items.Add("Open Editor…", null, (_, __) => EditorRequested?.Invoke(this, EventArgs.Empty));
         _menu.Items.Add("Settings…", null, (_, __) => SettingsRequested?.Invoke(this, EventArgs.Empty));
         _menu.Items.Add(new ToolStripSeparator());
         _menu.Items.Add("Exit", null, (_, __) => ExitRequested?.Invoke(this, EventArgs.Empty));
@@ -34,6 +35,7 @@ public sealed class MainForm : Form
 
     public event EventHandler? ExitRequested;
     public event EventHandler? SettingsRequested;
+    public event EventHandler? EditorRequested;
 
     protected override void OnShown(EventArgs e)
     {
