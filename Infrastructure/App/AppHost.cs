@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Windows.Forms;
 using GlobalTextHelper.Domain.Actions;
 using GlobalTextHelper.Domain.Prompting;
@@ -19,11 +20,14 @@ internal sealed class AppHost : ApplicationContext
     private readonly PopupController _popupController;
     private readonly UserSettings _userSettings;
     private readonly OpenAiClientFactory _openAiClientFactory;
+    private readonly ILogger _logger;
+    private readonly IClipboardService _clipboardService;
+    private readonly IReadOnlyList<ITextAction> _actions;
 
     public AppHost()
     {
-        var logger = new ConsoleLogger();
-        var clipboardService = new ClipboardService();
+        _logger = new ConsoleLogger();
+        _clipboardService = new ClipboardService();
         _workflow = new SelectionWorkflow();
         _userSettings = UserSettings.Load();
         _openAiClientFactory = new OpenAiClientFactory(GetStoredApiKey);
@@ -32,18 +36,19 @@ internal sealed class AppHost : ApplicationContext
         _mainForm.CreateControl();
         _mainForm.ExitRequested += (_, __) => ExitThread();
         _mainForm.SettingsRequested += OnSettingsRequested;
+        _mainForm.EditorRequested += OnEditorRequested;
 
         var promptBuilder = new TextSelectionPromptBuilder();
-        var actions = new ITextAction[]
+        _actions = new ITextAction[]
         {
-            new SimplifySelectionAction(promptBuilder, _openAiClientFactory, logger),
-            new RewriteSelectionAction(promptBuilder, _openAiClientFactory, logger)
+            new SimplifySelectionAction(promptBuilder, _openAiClientFactory, _logger),
+            new RewriteSelectionAction(promptBuilder, _openAiClientFactory, _logger)
         };
 
-        _popupController = new PopupController(actions, clipboardService, logger);
+        _popupController = new PopupController(_actions, _clipboardService, _logger);
         _popupController.PopupClosed += (_, __) => _workflow.MarkSelectionHandled();
 
-        _selectionWatcher = new SelectionWatcher(clipboardService, logger, _mainForm);
+        _selectionWatcher = new SelectionWatcher(_clipboardService, _logger, _mainForm);
         _selectionWatcher.SelectionCaptured += OnSelectionCaptured;
 
         MainForm = _mainForm;
@@ -85,6 +90,7 @@ internal sealed class AppHost : ApplicationContext
             _selectionWatcher.Dispose();
             _popupController.Dispose();
             _mainForm.SettingsRequested -= OnSettingsRequested;
+            _mainForm.EditorRequested -= OnEditorRequested;
             _mainForm.Dispose();
         }
 
@@ -125,4 +131,10 @@ internal sealed class AppHost : ApplicationContext
     }
 
     private void OnSettingsRequested(object? sender, EventArgs e) => ShowSettingsDialog();
+
+    private void OnEditorRequested(object? sender, EventArgs e)
+    {
+        using var editor = new EditorForm(_actions, _logger);
+        editor.ShowDialog(_mainForm);
+    }
 }
