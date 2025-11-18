@@ -39,7 +39,7 @@ internal sealed class AppHost : ApplicationContext
         _mainForm.SettingsRequested += OnSettingsRequested;
         _mainForm.EditorRequested += OnEditorRequested;
 
-        var promptBuilder = new TextSelectionPromptBuilder();
+        var promptBuilder = new TextSelectionPromptBuilder(() => _userSettings.PromptPreamble);
         _actions = new ITextAction[]
         {
             new SimplifySelectionAction(promptBuilder, _openAiClientFactory, _logger),
@@ -125,12 +125,14 @@ internal sealed class AppHost : ApplicationContext
         using var dialog = new SettingsForm
         {
             OpenAiApiKey = _userSettings.OpenAiApiKey,
+            PromptPreamble = _userSettings.PromptPreamble,
             RequireApiKey = requireApiKey
         };
 
         if (dialog.ShowDialog(_mainForm) == DialogResult.OK)
         {
             _userSettings.OpenAiApiKey = dialog.OpenAiApiKey;
+            _userSettings.PromptPreamble = dialog.PromptPreamble;
             _userSettings.Save();
             _openAiClientFactory.InvalidateClient();
         }

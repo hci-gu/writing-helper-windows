@@ -34,6 +34,18 @@ namespace GlobalTextHelper.Domain.Prompting
             "Hamburgare\n" +
             "Säg till om inget passar";
 
+        private readonly Func<string?> _promptPreambleProvider;
+
+        public TextSelectionPromptBuilder()
+            : this(() => null)
+        {
+        }
+
+        public TextSelectionPromptBuilder(Func<string?> promptPreambleProvider)
+        {
+            _promptPreambleProvider = promptPreambleProvider ?? throw new ArgumentNullException(nameof(promptPreambleProvider));
+        }
+
         /// <summary>
         /// Builds a prompt instructing the model to simplify the supplied text selection.
         /// </summary>
@@ -47,7 +59,10 @@ namespace GlobalTextHelper.Domain.Prompting
 
             string sanitized = selectedText.Trim();
 
-            return $"{SimplifierInstructions}\n\nInput text:\n\"\"\n{sanitized}\n\"\"\n\nSimplified response:";
+            string promptBody =
+                $"{SimplifierInstructions}\n\nInput text:\n\"\"\n{sanitized}\n\"\"\n\nSimplified response:";
+
+            return ApplyPromptPreamble(promptBody);
         }
 
         /// <summary>
@@ -101,12 +116,14 @@ namespace GlobalTextHelper.Domain.Prompting
                 _ => throw new ArgumentException($"Unknown rewrite style: '{style}'.", nameof(style))
             };
 
-            return "You are an assistant that rewrites text according to a specified style. " +
-                   "Follow the provided instructions exactly and only rewrite the text without adding commentary.\n\n" +
-                   $"Requested style: {normalizedStyle}\n" +
-                   $"Style instructions: {instructions}\n\n" +
-                   "Original text:\n\"\"\"\n" + sanitized + "\n\"\"\"\n\n" +
-                   "Rewritten text:";
+            string promptBody = "You are an assistant that rewrites text according to a specified style. " +
+                                 "Follow the provided instructions exactly and only rewrite the text without adding commentary.\n\n" +
+                                 $"Requested style: {normalizedStyle}\n" +
+                                 $"Style instructions: {instructions}\n\n" +
+                                 "Original text:\n\"\"\"\n" + sanitized + "\n\"\"\"\n\n" +
+                                 "Rewritten text:";
+
+            return ApplyPromptPreamble(promptBody);
         }
 
         /// <summary>
@@ -132,6 +149,17 @@ namespace GlobalTextHelper.Domain.Prompting
 
             string prompt = BuildRewritePrompt(selectedText, style);
             return client.SendPromptAsync(prompt, temperature, maxOutputTokens, cancellationToken);
+        }
+
+        private string ApplyPromptPreamble(string promptBody)
+        {
+            string? preamble = _promptPreambleProvider()?.Trim();
+            if (string.IsNullOrWhiteSpace(preamble))
+            {
+                return promptBody;
+            }
+
+            return $"User context:\n{preamble}\n\n{promptBody}";
         }
     }
 }
