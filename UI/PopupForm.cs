@@ -11,6 +11,7 @@ public sealed class PopupForm : Form
 {
     private readonly System.Windows.Forms.Timer _timer;
     private readonly Label _messageLabel;
+    private readonly TextBox _selectionTextBox;
     private readonly TableLayoutPanel _rewriteContainer;
     private readonly FlowLayoutPanel _modeSelectionPanel;
     private readonly FlowLayoutPanel _buttonPanel;
@@ -27,7 +28,7 @@ public sealed class PopupForm : Form
     private TaskCompletionSource<ReplacementPreviewResult>? _confirmationCompletion;
     private bool _isBusy;
 
-    public PopupForm(string message, int autohideMs)
+    public PopupForm(string message, int autohideMs, string selectionText)
     {
         AutoSize = true;
         AutoSizeMode = AutoSizeMode.GrowAndShrink;
@@ -142,15 +143,36 @@ public sealed class PopupForm : Form
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 3,
+            RowCount = 4,
             Margin = new Padding(0)
         };
 
         contentPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         contentPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         contentPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        contentPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         layout.Controls.Add(contentPanel, 0, 1);
+
+        _selectionTextBox = new TextBox
+        {
+            Multiline = true,
+            ScrollBars = ScrollBars.Vertical,
+            Font = new Font("Segoe UI", 9F),
+            ForeColor = Color.FromArgb(50, 50, 50),
+            BackColor = Color.FromArgb(250, 251, 255),
+            BorderStyle = BorderStyle.FixedSingle,
+            MinimumSize = new Size(480, 80),
+            MaximumSize = new Size(480, 160),
+            Size = new Size(480, 100),
+            Margin = new Padding(0, 12, 0, 0),
+            Text = selectionText ?? string.Empty,
+            AcceptsReturn = true,
+            AcceptsTab = true,
+            Dock = DockStyle.Fill
+        };
+
+        contentPanel.Controls.Add(_selectionTextBox, 0, 0);
 
         _modeSelectionPanel = new FlowLayoutPanel
         {
@@ -267,9 +289,9 @@ public sealed class PopupForm : Form
         _respondContainer.Controls.Add(respondBackRow, 0, 0);
         _respondContainer.Controls.Add(_respondPanel, 0, 1);
 
-        contentPanel.Controls.Add(_modeSelectionPanel, 0, 0);
-        contentPanel.Controls.Add(_rewriteContainer, 0, 1);
-        contentPanel.Controls.Add(_respondContainer, 0, 2);
+        contentPanel.Controls.Add(_modeSelectionPanel, 0, 1);
+        contentPanel.Controls.Add(_rewriteContainer, 0, 2);
+        contentPanel.Controls.Add(_respondContainer, 0, 3);
 
         _loadingPanel = new FlowLayoutPanel
         {
@@ -432,7 +454,7 @@ public sealed class PopupForm : Form
 
         try
         {
-            await handler(new PopupActionInvokedEventArgs(actionId, optionId));
+            await handler(new PopupActionInvokedEventArgs(actionId, optionId, _selectionTextBox.Text));
         }
         catch (Exception ex)
         {
