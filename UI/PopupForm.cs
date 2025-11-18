@@ -11,12 +11,17 @@ public sealed class PopupForm : Form
 {
     private readonly System.Windows.Forms.Timer _timer;
     private readonly Label _messageLabel;
+    private readonly FlowLayoutPanel _modeSelectionPanel;
     private readonly FlowLayoutPanel _buttonPanel;
+    private readonly FlowLayoutPanel _respondPanel;
     private readonly FlowLayoutPanel _loadingPanel;
     private readonly ProgressBar _loadingIndicator;
     private readonly Label _loadingLabel;
     private readonly Button _closeButton;
     private readonly List<ContextMenuStrip> _optionMenus = new();
+    private readonly List<PopupActionDescriptor> _rewriteActionDescriptors = new();
+    private readonly string _defaultMessage;
+    private PopupViewMode _currentView = PopupViewMode.ModeSelection;
     private TaskCompletionSource<ReplacementPreviewResult>? _confirmationCompletion;
     private bool _isBusy;
 
@@ -83,11 +88,15 @@ public sealed class PopupForm : Form
             Margin = new Padding(0, 0, 0, 2)
         };
 
+        _defaultMessage = string.IsNullOrWhiteSpace(message)
+            ? "Choose what to do with the selected text."
+            : message;
+
         _messageLabel = new Label
         {
             AutoSize = true,
             MaximumSize = new Size(380, 0),
-            Text = string.IsNullOrWhiteSpace(message) ? "Choose an action for the selected text." : message,
+            Text = _defaultMessage,
             Font = new Font("Segoe UI", 9F),
             ForeColor = Color.FromArgb(60, 60, 60),
             Margin = new Padding(0)
@@ -125,6 +134,42 @@ public sealed class PopupForm : Form
         headerPanel.Controls.Add(_closeButton, 1, 0);
         layout.Controls.Add(headerPanel, 0, 0);
 
+        var contentPanel = new TableLayoutPanel
+        {
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 3,
+            Margin = new Padding(0)
+        };
+
+        contentPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        contentPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        contentPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+        layout.Controls.Add(contentPanel, 0, 1);
+
+        _modeSelectionPanel = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Dock = DockStyle.Fill,
+            FlowDirection = FlowDirection.LeftToRight,
+            Margin = new Padding(0, 12, 0, 0),
+            Visible = true
+        };
+
+        var rewriteButton = ActionButtonFactory.CreatePrimaryActionButton("Rewrite selected text");
+        rewriteButton.Click += (_, __) => ShowRewriteActions();
+
+        var respondButton = ActionButtonFactory.CreateSecondaryActionButton("Respond to selected text");
+        respondButton.Margin = new Padding(8, 0, 0, 0);
+        respondButton.Click += (_, __) => ShowRespondView();
+
+        _modeSelectionPanel.Controls.Add(rewriteButton);
+        _modeSelectionPanel.Controls.Add(respondButton);
+
         _buttonPanel = new FlowLayoutPanel
         {
             AutoSize = true,
@@ -135,7 +180,35 @@ public sealed class PopupForm : Form
             Visible = false
         };
 
-        layout.Controls.Add(_buttonPanel, 0, 1);
+        _respondPanel = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Dock = DockStyle.Fill,
+            FlowDirection = FlowDirection.TopDown,
+            Margin = new Padding(0, 12, 0, 0),
+            Visible = false
+        };
+
+        var respondInfo = new Label
+        {
+            AutoSize = true,
+            MaximumSize = new Size(380, 0),
+            Text = "Response options are coming soon.",
+            Font = new Font("Segoe UI", 9F),
+            ForeColor = Color.FromArgb(60, 60, 60),
+            Margin = new Padding(0, 0, 0, 8)
+        };
+
+        var respondBackButton = ActionButtonFactory.CreateSecondaryActionButton("← Back");
+        respondBackButton.Click += (_, __) => ShowModeSelection();
+
+        _respondPanel.Controls.Add(respondInfo);
+        _respondPanel.Controls.Add(respondBackButton);
+
+        contentPanel.Controls.Add(_modeSelectionPanel, 0, 0);
+        contentPanel.Controls.Add(_buttonPanel, 0, 1);
+        contentPanel.Controls.Add(_respondPanel, 0, 2);
 
         _loadingPanel = new FlowLayoutPanel
         {
@@ -217,12 +290,36 @@ public sealed class PopupForm : Form
     {
         ClearActionButtons();
         var descriptors = actions?.ToList() ?? new List<PopupActionDescriptor>();
-        if (descriptors.Count == 0)
+        _rewriteActionDescriptors.Clear();
+        _rewriteActionDescriptors.AddRange(descriptors);
+        ShowModeSelection();
+    }
+
+    private void ShowModeSelection()
+    {
+        if (_currentView == PopupViewMode.RewriteActions)
+        {
+            ClearActionButtons();
+        }
+
+        _currentView = PopupViewMode.ModeSelection;
+        UpdateMessage(_defaultMessage);
+        UpdateActionAreaVisibility();
+    }
+
+    private void ShowRewriteActions()
+    {
+        if (_rewriteActionDescriptors.Count == 0)
         {
             return;
         }
 
-        foreach (var descriptor in descriptors)
+        ClearActionButtons();
+
+        var backButton = CreateBackButton();
+        _buttonPanel.Controls.Add(backButton);
+
+        foreach (var descriptor in _rewriteActionDescriptors)
         {
             var button = descriptor.IsPrimary
                 ? ActionButtonFactory.CreatePrimaryActionButton(descriptor.Label)
@@ -254,7 +351,25 @@ public sealed class PopupForm : Form
             _buttonPanel.Controls.Add(button);
         }
 
+        _currentView = PopupViewMode.RewriteActions;
+        UpdateMessage("Choose a rewrite option for the selected text.");
         UpdateActionAreaVisibility();
+    }
+
+    private void ShowRespondView()
+    {
+        ClearActionButtons();
+        _currentView = PopupViewMode.Respond;
+        UpdateMessage("Respond to the selected text (coming soon).");
+        UpdateActionAreaVisibility();
+    }
+
+    private Button CreateBackButton()
+    {
+        var button = ActionButtonFactory.CreateSecondaryActionButton("← Back");
+        button.Margin = new Padding(0, 0, 12, 0);
+        button.Click += (_, __) => ShowModeSelection();
+        return button;
     }
 
     private async Task RaiseActionInvokedAsync(string actionId, string? optionId)
@@ -379,13 +494,18 @@ public sealed class PopupForm : Form
         UseWaitCursor = isBusy;
         Cursor = isBusy ? Cursors.WaitCursor : Cursors.Default;
         _buttonPanel.Enabled = !isBusy;
+        _modeSelectionPanel.Enabled = !isBusy;
+        _respondPanel.Enabled = !isBusy;
         _closeButton.Enabled = !isBusy;
         UpdateActionAreaVisibility();
     }
 
     private void UpdateActionAreaVisibility()
     {
-        _buttonPanel.Visible = !_isBusy && _buttonPanel.Controls.Count > 0;
+        var canShowContent = !_isBusy;
+        _modeSelectionPanel.Visible = canShowContent && _currentView == PopupViewMode.ModeSelection;
+        _buttonPanel.Visible = canShowContent && _currentView == PopupViewMode.RewriteActions && _buttonPanel.Controls.Count > 0;
+        _respondPanel.Visible = canShowContent && _currentView == PopupViewMode.Respond;
         _loadingPanel.Visible = _isBusy;
         PerformLayout();
     }
@@ -409,6 +529,13 @@ public sealed class PopupForm : Form
         }));
     }
 
+}
+
+internal enum PopupViewMode
+{
+    ModeSelection,
+    RewriteActions,
+    Respond
 }
 
 public enum ReplacementPreviewResult
