@@ -8,6 +8,7 @@ public sealed class SettingsForm : Form
 {
     private readonly TextBox _apiKeyTextBox;
     private readonly Label _statusLabel;
+    private readonly TextBox _promptPreambleTextBox;
 
     public SettingsForm()
     {
@@ -23,13 +24,16 @@ public sealed class SettingsForm : Form
         var layout = new TableLayoutPanel
         {
             ColumnCount = 1,
-            RowCount = 5,
+            RowCount = 8,
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             Dock = DockStyle.Fill,
         };
 
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -54,6 +58,30 @@ public sealed class SettingsForm : Form
         {
             Width = 360,
             UseSystemPasswordChar = true,
+        };
+
+        var promptPreambleLabel = new Label
+        {
+            AutoSize = true,
+            Text = "About you (optional)",
+            Margin = new Padding(0, 12, 0, 2),
+        };
+
+        _promptPreambleTextBox = new TextBox
+        {
+            Width = 360,
+            Height = 120,
+            Multiline = true,
+            ScrollBars = ScrollBars.Vertical,
+            AcceptsReturn = true,
+        };
+
+        var promptInstructions = new Label
+        {
+            AutoSize = true,
+            MaximumSize = new Size(380, 0),
+            ForeColor = Color.FromArgb(90, 90, 90),
+            Text = "Anything you write here will be added to the beginning of prompts so the assistant knows more about you.",
         };
 
         _statusLabel = new Label
@@ -98,7 +126,10 @@ public sealed class SettingsForm : Form
         layout.Controls.Add(apiKeyLabel, 0, 1);
         layout.Controls.Add(_apiKeyTextBox, 0, 2);
         layout.Controls.Add(_statusLabel, 0, 3);
-        layout.Controls.Add(buttonPanel, 0, 4);
+        layout.Controls.Add(promptPreambleLabel, 0, 4);
+        layout.Controls.Add(_promptPreambleTextBox, 0, 5);
+        layout.Controls.Add(promptInstructions, 0, 6);
+        layout.Controls.Add(buttonPanel, 0, 7);
 
         Controls.Add(layout);
     }
@@ -107,6 +138,12 @@ public sealed class SettingsForm : Form
     {
         get => string.IsNullOrWhiteSpace(_apiKeyTextBox.Text) ? null : _apiKeyTextBox.Text.Trim();
         set => _apiKeyTextBox.Text = value ?? string.Empty;
+    }
+
+    public string? PromptPreamble
+    {
+        get => string.IsNullOrWhiteSpace(_promptPreambleTextBox.Text) ? null : _promptPreambleTextBox.Text.Trim();
+        set => _promptPreambleTextBox.Text = value ?? string.Empty;
     }
 
     public bool RequireApiKey { get; set; }
