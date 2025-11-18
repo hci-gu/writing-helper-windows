@@ -11,8 +11,10 @@ public sealed class PopupForm : Form
 {
     private readonly System.Windows.Forms.Timer _timer;
     private readonly Label _messageLabel;
+    private readonly TableLayoutPanel _rewriteContainer;
     private readonly FlowLayoutPanel _modeSelectionPanel;
     private readonly FlowLayoutPanel _buttonPanel;
+    private readonly TableLayoutPanel _respondContainer;
     private readonly FlowLayoutPanel _respondPanel;
     private readonly FlowLayoutPanel _loadingPanel;
     private readonly ProgressBar _loadingIndicator;
@@ -95,7 +97,7 @@ public sealed class PopupForm : Form
         _messageLabel = new Label
         {
             AutoSize = true,
-            MaximumSize = new Size(380, 0),
+            MaximumSize = new Size(480, 0),
             Text = _defaultMessage,
             Font = new Font("Segoe UI", 9F),
             ForeColor = Color.FromArgb(60, 60, 60),
@@ -156,6 +158,7 @@ public sealed class PopupForm : Form
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             Dock = DockStyle.Fill,
             FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = false,
             Margin = new Padding(0, 12, 0, 0),
             Visible = true
         };
@@ -176,9 +179,40 @@ public sealed class PopupForm : Form
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             Dock = DockStyle.Fill,
             FlowDirection = FlowDirection.LeftToRight,
-            Margin = new Padding(0, 12, 0, 0),
+            WrapContents = true,
+            Margin = new Padding(0, 6, 0, 0),
             Visible = false
         };
+
+        var rewriteBackRow = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Dock = DockStyle.Fill,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = false,
+            Margin = new Padding(0, 12, 0, 0)
+        };
+
+        var rewriteBackButton = ActionButtonFactory.CreateBackNavigationButton("< Back");
+        rewriteBackButton.Click += (_, __) => ShowModeSelection();
+        rewriteBackRow.Controls.Add(rewriteBackButton);
+
+        _rewriteContainer = new TableLayoutPanel
+        {
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 2,
+            Margin = new Padding(0),
+            Visible = false
+        };
+
+        _rewriteContainer.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        _rewriteContainer.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        _rewriteContainer.Controls.Add(rewriteBackRow, 0, 0);
+        _rewriteContainer.Controls.Add(_buttonPanel, 0, 1);
 
         _respondPanel = new FlowLayoutPanel
         {
@@ -186,29 +220,56 @@ public sealed class PopupForm : Form
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             Dock = DockStyle.Fill,
             FlowDirection = FlowDirection.TopDown,
-            Margin = new Padding(0, 12, 0, 0),
+            Margin = new Padding(0, 6, 0, 0),
             Visible = false
         };
 
         var respondInfo = new Label
         {
             AutoSize = true,
-            MaximumSize = new Size(380, 0),
+            MaximumSize = new Size(480, 0),
             Text = "Response options are coming soon.",
             Font = new Font("Segoe UI", 9F),
             ForeColor = Color.FromArgb(60, 60, 60),
             Margin = new Padding(0, 0, 0, 8)
         };
 
-        var respondBackButton = ActionButtonFactory.CreateSecondaryActionButton("← Back");
-        respondBackButton.Click += (_, __) => ShowModeSelection();
-
         _respondPanel.Controls.Add(respondInfo);
-        _respondPanel.Controls.Add(respondBackButton);
+
+        _respondContainer = new TableLayoutPanel
+        {
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 2,
+            Margin = new Padding(0),
+            Visible = false
+        };
+
+        _respondContainer.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        _respondContainer.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+        var respondBackRow = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Dock = DockStyle.Fill,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = false,
+            Margin = new Padding(0, 12, 0, 0)
+        };
+
+        var respondBackButton = ActionButtonFactory.CreateBackNavigationButton("< Back");
+        respondBackButton.Click += (_, __) => ShowModeSelection();
+        respondBackRow.Controls.Add(respondBackButton);
+
+        _respondContainer.Controls.Add(respondBackRow, 0, 0);
+        _respondContainer.Controls.Add(_respondPanel, 0, 1);
 
         contentPanel.Controls.Add(_modeSelectionPanel, 0, 0);
-        contentPanel.Controls.Add(_buttonPanel, 0, 1);
-        contentPanel.Controls.Add(_respondPanel, 0, 2);
+        contentPanel.Controls.Add(_rewriteContainer, 0, 1);
+        contentPanel.Controls.Add(_respondContainer, 0, 2);
 
         _loadingPanel = new FlowLayoutPanel
         {
@@ -316,9 +377,6 @@ public sealed class PopupForm : Form
 
         ClearActionButtons();
 
-        var backButton = CreateBackButton();
-        _buttonPanel.Controls.Add(backButton);
-
         foreach (var descriptor in _rewriteActionDescriptors)
         {
             var button = descriptor.IsPrimary
@@ -362,14 +420,6 @@ public sealed class PopupForm : Form
         _currentView = PopupViewMode.Respond;
         UpdateMessage("Respond to the selected text (coming soon).");
         UpdateActionAreaVisibility();
-    }
-
-    private Button CreateBackButton()
-    {
-        var button = ActionButtonFactory.CreateSecondaryActionButton("← Back");
-        button.Margin = new Padding(0, 0, 12, 0);
-        button.Click += (_, __) => ShowModeSelection();
-        return button;
     }
 
     private async Task RaiseActionInvokedAsync(string actionId, string? optionId)
@@ -495,6 +545,8 @@ public sealed class PopupForm : Form
         Cursor = isBusy ? Cursors.WaitCursor : Cursors.Default;
         _buttonPanel.Enabled = !isBusy;
         _modeSelectionPanel.Enabled = !isBusy;
+        _rewriteContainer.Enabled = !isBusy;
+        _respondContainer.Enabled = !isBusy;
         _respondPanel.Enabled = !isBusy;
         _closeButton.Enabled = !isBusy;
         UpdateActionAreaVisibility();
@@ -504,8 +556,12 @@ public sealed class PopupForm : Form
     {
         var canShowContent = !_isBusy;
         _modeSelectionPanel.Visible = canShowContent && _currentView == PopupViewMode.ModeSelection;
-        _buttonPanel.Visible = canShowContent && _currentView == PopupViewMode.RewriteActions && _buttonPanel.Controls.Count > 0;
-        _respondPanel.Visible = canShowContent && _currentView == PopupViewMode.Respond;
+        var showRewrite = canShowContent && _currentView == PopupViewMode.RewriteActions;
+        _rewriteContainer.Visible = showRewrite;
+        _buttonPanel.Visible = showRewrite && _buttonPanel.Controls.Count > 0;
+        var showRespond = canShowContent && _currentView == PopupViewMode.Respond;
+        _respondContainer.Visible = showRespond;
+        _respondPanel.Visible = showRespond;
         _loadingPanel.Visible = _isBusy;
         PerformLayout();
     }
@@ -544,3 +600,5 @@ public enum ReplacementPreviewResult
     CopyToClipboard,
     Cancel
 }
+
+

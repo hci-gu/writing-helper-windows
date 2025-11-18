@@ -28,6 +28,19 @@ internal static class ActionButtonFactory
         return button;
     }
 
+    public static Button CreateBackNavigationButton(string text)
+    {
+        var button = CreateBaseActionButton(text);
+        button.Padding = new Padding(10, 6, 10, 6);
+        button.Font = new Font("Segoe UI", 8.5f, FontStyle.Regular);
+        button.BackColor = Color.White;
+        button.ForeColor = Color.FromArgb(70, 80, 95);
+        button.FlatAppearance.BorderColor = Color.FromArgb(209, 216, 232);
+        button.FlatAppearance.MouseOverBackColor = Color.FromArgb(240, 244, 252);
+        button.FlatAppearance.MouseDownBackColor = Color.FromArgb(227, 233, 247);
+        return button;
+    }
+
     private static Button CreateBaseActionButton(string text)
     {
         var button = new Button
