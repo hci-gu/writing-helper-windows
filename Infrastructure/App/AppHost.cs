@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Windows.Forms;
 using GlobalTextHelper.Domain.Actions;
 using GlobalTextHelper.Domain.Prompting;
+using GlobalTextHelper.Domain.Responding;
 using GlobalTextHelper.Domain.Selection;
 using GlobalTextHelper.Infrastructure.Clipboard;
 using GlobalTextHelper.Infrastructure.Logging;
@@ -18,6 +19,7 @@ internal sealed class AppHost : ApplicationContext
     private readonly SelectionWorkflow _workflow;
     private readonly SelectionWatcher _selectionWatcher;
     private readonly PopupController _popupController;
+    private readonly ResponseSuggestionService _responseSuggestionService;
     private readonly UserSettings _userSettings;
     private readonly OpenAiClientFactory _openAiClientFactory;
     private readonly ILogger _logger;
@@ -40,13 +42,17 @@ internal sealed class AppHost : ApplicationContext
         _mainForm.EditorRequested += OnEditorRequested;
 
         var promptBuilder = new TextSelectionPromptBuilder(() => _userSettings.PromptPreamble);
+        _responseSuggestionService = new ResponseSuggestionService(
+            () => _userSettings.PromptPreamble,
+            _openAiClientFactory,
+            _logger);
         _actions = new ITextAction[]
         {
             new SimplifySelectionAction(promptBuilder, _openAiClientFactory, _logger),
             new RewriteSelectionAction(promptBuilder, _openAiClientFactory, _logger)
         };
 
-        _popupController = new PopupController(_actions, _clipboardService, _logger);
+        _popupController = new PopupController(_actions, _clipboardService, _logger, _responseSuggestionService);
         _popupController.PopupClosed += (_, __) => _workflow.MarkSelectionHandled();
 
         _selectionWatcher = new SelectionWatcher(_clipboardService, _logger, _mainForm);

@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using GlobalTextHelper.Domain.Responding;
 
 namespace GlobalTextHelper.UI;
 
@@ -17,6 +18,8 @@ public sealed class PopupForm : Form
     private readonly FlowLayoutPanel _buttonPanel;
     private readonly TableLayoutPanel _respondContainer;
     private readonly FlowLayoutPanel _respondPanel;
+    private readonly Label _respondStatusLabel;
+    private readonly FlowLayoutPanel _respondButtonPanel;
     private readonly FlowLayoutPanel _loadingPanel;
     private readonly ProgressBar _loadingIndicator;
     private readonly Label _loadingLabel;
@@ -190,7 +193,7 @@ public sealed class PopupForm : Form
 
         var respondButton = ActionButtonFactory.CreateSecondaryActionButton("Respond to selected text");
         respondButton.Margin = new Padding(8, 0, 0, 0);
-        respondButton.Click += (_, __) => ShowRespondView();
+        respondButton.Click += async (_, __) => await BeginRespondFlowAsync();
 
         _modeSelectionPanel.Controls.Add(rewriteButton);
         _modeSelectionPanel.Controls.Add(respondButton);
@@ -246,17 +249,27 @@ public sealed class PopupForm : Form
             Visible = false
         };
 
-        var respondInfo = new Label
+        _respondStatusLabel = new Label
         {
             AutoSize = true,
             MaximumSize = new Size(480, 0),
-            Text = "Response options are coming soon.",
+            Text = "Choose how you'd like to respond.",
             Font = new Font("Segoe UI", 9F),
             ForeColor = Color.FromArgb(60, 60, 60),
             Margin = new Padding(0, 0, 0, 8)
         };
 
-        _respondPanel.Controls.Add(respondInfo);
+        _respondButtonPanel = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = true,
+            Margin = new Padding(0)
+        };
+
+        _respondPanel.Controls.Add(_respondStatusLabel);
+        _respondPanel.Controls.Add(_respondButtonPanel);
 
         _respondContainer = new TableLayoutPanel
         {
@@ -344,6 +357,7 @@ public sealed class PopupForm : Form
     }
 
     public event Func<PopupActionInvokedEventArgs, Task>? ActionInvoked;
+    public event Func<string, Task>? RespondRequested;
 
     protected override bool ShowWithoutActivation => true;
 
@@ -440,8 +454,37 @@ public sealed class PopupForm : Form
     {
         ClearActionButtons();
         _currentView = PopupViewMode.Respond;
-        UpdateMessage("Respond to the selected text (coming soon).");
+        UpdateMessage("Respond to the selected text.");
         UpdateActionAreaVisibility();
+    }
+
+    private async Task BeginRespondFlowAsync()
+    {
+        if (IsDisposed)
+        {
+            return;
+        }
+
+        ShowRespondView();
+        SetRespondStatus("Generating response ideas…");
+        ClearRespondButtons();
+
+        var handler = RespondRequested;
+        if (handler is null)
+        {
+            SetRespondStatus("Response suggestions are not available.");
+            return;
+        }
+
+        try
+        {
+            await handler(_selectionTextBox.Text);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine(ex);
+            SetRespondStatus("Unable to load response options.");
+        }
     }
 
     private async Task RaiseActionInvokedAsync(string actionId, string? optionId)
@@ -473,6 +516,133 @@ public sealed class PopupForm : Form
         _selectionTextBox.SelectionStart = _selectionTextBox.TextLength;
         _selectionTextBox.SelectionLength = 0;
         _selectionTextBox.ScrollToCaret();
+    }
+
+    public void SetRespondSuggestions(IEnumerable<ResponseSuggestion> suggestions)
+    {
+        if (IsDisposed)
+        {
+            return;
+        }
+
+        ShowRespondView();
+        ClearRespondButtons();
+
+        var list = suggestions?.ToList() ?? new List<ResponseSuggestion>();
+        if (list.Count == 0)
+        {
+            SetRespondStatus("No response suggestions were returned.");
+            UpdateActionAreaVisibility();
+            return;
+        }
+
+        foreach (var suggestion in list)
+        {
+            var button = CreateRespondButton(suggestion);
+            _respondButtonPanel.Controls.Add(button);
+        }
+
+        UpdateActionAreaVisibility();
+    }
+
+    public void SetRespondStatus(string text)
+    {
+        if (!IsDisposed)
+        {
+            _respondStatusLabel.Text = text;
+        }
+    }
+
+    private void ClearRespondButtons()
+    {
+        if (IsDisposed)
+        {
+            return;
+        }
+
+        foreach (Control control in _respondButtonPanel.Controls.Cast<Control>().ToList())
+        {
+            control.Dispose();
+        }
+
+        _respondButtonPanel.Controls.Clear();
+    }
+
+    private Button CreateRespondButton(ResponseSuggestion suggestion)
+    {
+        var palette = GetRespondPalette(suggestion.Tone);
+        var button = new Button
+        {
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            FlatStyle = FlatStyle.Flat,
+            Cursor = Cursors.Hand,
+            UseVisualStyleBackColor = false,
+            TextAlign = ContentAlignment.MiddleLeft,
+            Text = BuildRespondButtonText(suggestion),
+            Padding = new Padding(14, 8, 14, 8),
+            MaximumSize = new Size(480, 0),
+            Margin = new Padding(_respondButtonPanel.Controls.Count > 0 ? 8 : 0, 0, 0, 8),
+            BackColor = palette.Back,
+            ForeColor = palette.Fore,
+            TabStop = false
+        };
+
+        button.FlatAppearance.BorderSize = 0;
+        button.FlatAppearance.MouseOverBackColor = palette.Hover;
+        button.FlatAppearance.MouseDownBackColor = palette.Down;
+        button.Click += (s, e) => ApplyRespondSuggestion(suggestion);
+        return button;
+    }
+
+    private static (Color Back, Color Hover, Color Down, Color Fore) GetRespondPalette(ResponseTone tone)
+    {
+        return tone switch
+        {
+            ResponseTone.Affirmative =>
+                (Color.FromArgb(34, 132, 88), Color.FromArgb(41, 150, 100), Color.FromArgb(29, 110, 74), Color.White),
+            ResponseTone.Negative =>
+                (Color.FromArgb(201, 66, 66), Color.FromArgb(214, 86, 86), Color.FromArgb(170, 52, 52), Color.White),
+            _ =>
+                (Color.FromArgb(236, 238, 244), Color.FromArgb(226, 229, 238), Color.FromArgb(214, 218, 230), Color.FromArgb(55, 60, 75))
+        };
+    }
+
+    private static string BuildRespondButtonText(ResponseSuggestion suggestion)
+    {
+        string snippet = string.IsNullOrWhiteSpace(suggestion.Snippet)
+            ? GetDefaultSnippet(suggestion.Tone)
+            : suggestion.Snippet.Trim();
+
+        if (snippet.Length > 70)
+        {
+            snippet = snippet[..67].TrimEnd() + "…";
+        }
+
+        return snippet;
+    }
+
+    private static string GetDefaultSnippet(ResponseTone tone)
+    {
+        return tone switch
+        {
+            ResponseTone.Affirmative => "Confirming yes",
+            ResponseTone.Negative => "Politely decline",
+            _ => "Ask for details"
+        };
+    }
+
+    private void ApplyRespondSuggestion(ResponseSuggestion suggestion)
+    {
+        if (IsDisposed)
+        {
+            return;
+        }
+
+        StopAutoClose();
+        SetSelectionText(suggestion.FullResponse);
+        SetRespondStatus("Response inserted below. Edit or copy before sending.");
+        UpdateMessage("A drafted response has been inserted below.");
     }
 
     public string GetSelectionText()

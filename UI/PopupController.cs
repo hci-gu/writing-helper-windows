@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using GlobalTextHelper.Domain.Actions;
+using GlobalTextHelper.Domain.Responding;
 using GlobalTextHelper.Domain.Selection;
 using GlobalTextHelper.Infrastructure.Clipboard;
 using GlobalTextHelper.Infrastructure.Logging;
@@ -16,15 +17,21 @@ public sealed class PopupController : IDisposable
     private readonly IReadOnlyList<ITextAction> _actions;
     private readonly IClipboardService _clipboardService;
     private readonly ILogger _logger;
+    private readonly ResponseSuggestionService _responseSuggestionService;
     private PopupForm? _activePopup;
     private SelectionContext? _currentContext;
     private bool _disposed;
 
-    public PopupController(IEnumerable<ITextAction> actions, IClipboardService clipboardService, ILogger logger)
+    public PopupController(
+        IEnumerable<ITextAction> actions,
+        IClipboardService clipboardService,
+        ILogger logger,
+        ResponseSuggestionService responseSuggestionService)
     {
         _actions = actions.ToList();
         _clipboardService = clipboardService;
         _logger = logger;
+        _responseSuggestionService = responseSuggestionService;
     }
 
     public event EventHandler? PopupClosed;
@@ -41,6 +48,7 @@ public sealed class PopupController : IDisposable
 
         var popup = new PopupForm("Choose an action for the selected text.", 30000, context.OriginalText);
         popup.ActionInvoked += HandleActionInvokedAsync;
+        popup.RespondRequested += HandleRespondRequestedAsync;
         popup.FormClosed += (_, __) =>
         {
             if (ReferenceEquals(_activePopup, popup))
@@ -61,6 +69,45 @@ public sealed class PopupController : IDisposable
         int y = cursor.Y + 12;
         popup.ShowNear(new System.Drawing.Point(x, y));
         _activePopup = popup;
+    }
+
+    private async Task HandleRespondRequestedAsync(string selectionText)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        if (_activePopup is null || _responseSuggestionService is null)
+        {
+            return;
+        }
+
+        var popup = _activePopup;
+        popup.StopAutoClose();
+        popup.UpdateMessage("Generating response options…");
+        popup.SetRespondStatus("Gathering response ideas…");
+        popup.SetBusyState(true);
+
+        try
+        {
+            var suggestions = await _responseSuggestionService.GenerateSuggestionsAsync(
+                selectionText,
+                CancellationToken.None);
+
+            popup.SetBusyState(false);
+            popup.SetRespondSuggestions(suggestions);
+            popup.UpdateMessage("Choose how you would like to respond.");
+            popup.SetRespondStatus("Select a response to populate it below.");
+        }
+        catch (Exception ex)
+        {
+            popup.SetBusyState(false);
+            _logger.LogError("Failed to load response suggestions", ex);
+            popup.SetRespondStatus("Unable to load response options.");
+            popup.UpdateMessage("Unable to load response options right now.");
+            popup.RestartAutoClose(4000);
+        }
     }
 
     private async Task HandleActionInvokedAsync(PopupActionInvokedEventArgs args)
