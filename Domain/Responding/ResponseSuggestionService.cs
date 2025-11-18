@@ -76,9 +76,9 @@ public sealed class ResponseSuggestionService
         builder.AppendLine(Instructions);
         builder.AppendLine();
         builder.AppendLine("Input message:");
-        builder.AppendLine("""");
+        builder.AppendLine("\"\"\"");
         builder.AppendLine(sanitized);
-        builder.AppendLine("""");
+        builder.AppendLine("\"\"\"");
         builder.AppendLine();
         builder.AppendLine("JSON:");
 
