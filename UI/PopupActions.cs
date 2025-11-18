@@ -21,12 +21,14 @@ public sealed class PopupActionDescriptor
 
 public sealed class PopupActionInvokedEventArgs
 {
-    public PopupActionInvokedEventArgs(string actionId, string? optionId)
+    public PopupActionInvokedEventArgs(string actionId, string? optionId, string selectedText)
     {
         ActionId = actionId;
         OptionId = optionId;
+        SelectedText = selectedText;
     }
 
     public string ActionId { get; }
     public string? OptionId { get; }
+    public string SelectedText { get; }
 }

@@ -39,7 +39,7 @@ public sealed class PopupController : IDisposable
         ClosePopup();
         _currentContext = context;
 
-        var popup = new PopupForm("Choose an action for the selected text.", 30000);
+        var popup = new PopupForm("Choose an action for the selected text.", 30000, context.OriginalText);
         popup.ActionInvoked += HandleActionInvokedAsync;
         popup.FormClosed += (_, __) =>
         {
@@ -88,7 +88,7 @@ public sealed class PopupController : IDisposable
 
         try
         {
-            var result = await action.ExecuteAsync(_currentContext.OriginalText, args.OptionId, CancellationToken.None);
+            var result = await action.ExecuteAsync(args.SelectedText, args.OptionId, CancellationToken.None);
             if (!result.Success)
             {
                 popup.SetBusyState(false);
