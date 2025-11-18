@@ -462,6 +462,24 @@ public sealed class PopupForm : Form
         }
     }
 
+    public void SetSelectionText(string text)
+    {
+        if (IsDisposed)
+        {
+            return;
+        }
+
+        _selectionTextBox.Text = text ?? string.Empty;
+        _selectionTextBox.SelectionStart = _selectionTextBox.TextLength;
+        _selectionTextBox.SelectionLength = 0;
+        _selectionTextBox.ScrollToCaret();
+    }
+
+    public string GetSelectionText()
+    {
+        return IsDisposed ? string.Empty : _selectionTextBox.Text;
+    }
+
     public void UpdateMessage(string text)
     {
         if (!IsDisposed)
@@ -504,7 +522,8 @@ public sealed class PopupForm : Form
         _confirmationCompletion = new TaskCompletionSource<ReplacementPreviewResult>();
 
         _messageLabel.MaximumSize = new Size(480, 0);
-        UpdateMessage(replacementText);
+        UpdateMessage("Review or tweak the updated text below.");
+        SetSelectionText(replacementText);
 
         _buttonPanel.Controls.Clear();
         _buttonPanel.Enabled = true;

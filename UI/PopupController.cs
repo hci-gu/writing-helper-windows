@@ -112,19 +112,23 @@ public sealed class PopupController : IDisposable
 
             popup.ClearActionButtons();
 
+            var replacementText = string.IsNullOrWhiteSpace(popup.GetSelectionText())
+                ? result.ReplacementText!
+                : popup.GetSelectionText();
+
             switch (previewResult)
             {
                 case ReplacementPreviewResult.Accept:
                     await _clipboardService.ReplaceSelectionAsync(
                         _currentContext.OriginalText,
-                        result.ReplacementText,
+                        replacementText,
                         _currentContext.SourceWindow,
                         CancellationToken.None);
                     popup.UpdateMessage(result.SuccessMessage ?? "Replacement inserted.");
                     popup.RestartAutoClose(1500);
                     break;
                 case ReplacementPreviewResult.CopyToClipboard:
-                    await _clipboardService.CopyToClipboardAsync(result.ReplacementText, CancellationToken.None);
+                    await _clipboardService.CopyToClipboardAsync(replacementText, CancellationToken.None);
                     popup.UpdateMessage("Replacement copied to clipboard.");
                     popup.RestartAutoClose(1500);
                     break;
