@@ -166,7 +166,7 @@ public sealed class PopupForm : Form
             BackColor = Theme.SurfaceColor,
             BorderStyle = BorderStyle.None,
             MinimumSize = new Size(480, 80),
-            MaximumSize = new Size(480, 160),
+            MaximumSize = new Size(480, 600),
             Size = new Size(480, 100),
             Margin = new Padding(0, 12, 0, 0),
             Text = selectionText ?? string.Empty,
@@ -176,6 +176,7 @@ public sealed class PopupForm : Form
         };
 
         contentPanel.Controls.Add(_selectionTextBox, 0, 0);
+        AdjustSelectionTextBoxHeight();
 
         _modeSelectionPanel = new FlowLayoutPanel
         {
@@ -516,6 +517,34 @@ public sealed class PopupForm : Form
         _selectionTextBox.SelectionStart = _selectionTextBox.TextLength;
         _selectionTextBox.SelectionLength = 0;
         _selectionTextBox.ScrollToCaret();
+        AdjustSelectionTextBoxHeight();
+    }
+
+    private void AdjustSelectionTextBoxHeight()
+    {
+        if (_selectionTextBox.IsDisposed)
+        {
+            return;
+        }
+
+        var width = _selectionTextBox.ClientSize.Width;
+        if (width <= 0)
+        {
+            width = 480 - SystemInformation.VerticalScrollBarWidth - 4;
+        }
+
+        var size = TextRenderer.MeasureText(
+            _selectionTextBox.Text,
+            _selectionTextBox.Font,
+            new Size(width, int.MaxValue),
+            TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl);
+
+        var newHeight = size.Height + 24;
+        const int minHeight = 80;
+        const int maxHeight = 500;
+
+        newHeight = Math.Max(minHeight, Math.Min(newHeight, maxHeight));
+        _selectionTextBox.Height = newHeight;
     }
 
     public void SetRespondSuggestions(IEnumerable<ResponseSuggestion> suggestions)
