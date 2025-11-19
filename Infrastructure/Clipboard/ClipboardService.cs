@@ -121,6 +121,8 @@ public sealed class ClipboardService : IClipboardService
         if (targetWindow != IntPtr.Zero)
         {
             SetForegroundWindow(targetWindow);
+            // Verify focus switch before sending input
+            await Task.Delay(100, cancellationToken);
         }
 
         SendCtrlShortcut(Keys.V);
