@@ -122,7 +122,9 @@ public sealed class ClipboardService : IClipboardService
 
         if (targetWindow != IntPtr.Zero)
         {
-            SetForegroundWindow(targetWindow);
+            var rootWindow = GetAncestor(targetWindow, GA_ROOT);
+            SetForegroundWindow(rootWindow != IntPtr.Zero ? rootWindow : targetWindow);
+            
             // Verify focus switch before sending input
             await Task.Delay(200, cancellationToken);
         }
@@ -279,6 +281,11 @@ public sealed class ClipboardService : IClipboardService
             }
         };
     }
+
+    [DllImport("user32.dll", ExactSpelling = true)]
+    private static extern IntPtr GetAncestor(IntPtr hwnd, uint flags);
+
+    private const uint GA_ROOT = 2;
 
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr hWnd);
