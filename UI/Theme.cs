@@ -28,7 +28,7 @@ public static class Theme
     public static readonly Font HeaderFont = new Font("Segoe UI", 11F, FontStyle.Bold);
     public static readonly Font BodyFont = new Font("Segoe UI", 9.5F, FontStyle.Regular);
     public static readonly Font SmallFont = new Font("Segoe UI", 8.5F, FontStyle.Regular);
-    public static readonly Font ButtonFont = new Font("Segoe UI", 9.5F, FontStyle.SemiBold);
+    public static readonly Font ButtonFont = new Font("Segoe UI", 9.5F, FontStyle.Bold);
 
     // Dimensions
     public const int CornerRadius = 6;

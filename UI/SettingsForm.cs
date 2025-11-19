@@ -17,7 +17,7 @@ public sealed class SettingsForm : Form
         MaximizeBox = false;
         MinimizeBox = false;
         StartPosition = FormStartPosition.CenterParent;
-        AutoSize = true,
+        AutoSize = true;
         AutoSizeMode = AutoSizeMode.GrowAndShrink;
         Padding = new Padding(Theme.PaddingMedium);
         BackColor = Theme.BackgroundColor;
