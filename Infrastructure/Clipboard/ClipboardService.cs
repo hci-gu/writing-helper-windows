@@ -31,11 +31,10 @@ public sealed class ClipboardService : IClipboardService
         return Task.FromResult(CaptureSelectionInternal(sourceWindow));
     }
 
-    public Task ReplaceSelectionAsync(string originalText, string replacementText, IntPtr targetWindow, CancellationToken cancellationToken)
+    public async Task ReplaceSelectionAsync(string originalText, string replacementText, IntPtr targetWindow, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        ReplaceSelectionInternal(originalText, replacementText, targetWindow);
-        return Task.CompletedTask;
+        await ReplaceSelectionInternalAsync(originalText, replacementText, targetWindow, cancellationToken);
     }
 
     public Task CopyToClipboardAsync(string text, CancellationToken cancellationToken)
@@ -91,7 +90,7 @@ public sealed class ClipboardService : IClipboardService
         return null;
     }
 
-    private void ReplaceSelectionInternal(string originalText, string replacementText, IntPtr targetWindow)
+    private async Task ReplaceSelectionInternalAsync(string originalText, string replacementText, IntPtr targetWindow, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(replacementText))
         {
@@ -125,6 +124,10 @@ public sealed class ClipboardService : IClipboardService
         }
 
         SendCtrlShortcut(Keys.V);
+
+        // Give the target application some time to process the paste command
+        // before we restore the original clipboard content.
+        await Task.Delay(250, cancellationToken);
 
         try
         {
