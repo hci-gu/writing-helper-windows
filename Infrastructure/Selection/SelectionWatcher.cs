@@ -25,16 +25,18 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
     private readonly ILogger _logger;
     private readonly ISynchronizeInvoke _dispatcher;
     private readonly Func<bool> _isAutoShowEnabled;
+    private readonly Func<int> _getMinSelectionLength;
     private WinEventDelegate? _winEventDelegate;
     private IntPtr _winEventHook = IntPtr.Zero;
     private bool _disposed;
 
-    public SelectionWatcher(IClipboardService clipboardService, ILogger logger, ISynchronizeInvoke dispatcher, Func<bool> isAutoShowEnabled)
+    public SelectionWatcher(IClipboardService clipboardService, ILogger logger, ISynchronizeInvoke dispatcher, Func<bool> isAutoShowEnabled, Func<int> getMinSelectionLength)
     {
         _clipboardService = clipboardService;
         _logger = logger;
         _dispatcher = dispatcher;
         _isAutoShowEnabled = isAutoShowEnabled;
+        _getMinSelectionLength = getMinSelectionLength;
         CreateHandle(new CreateParams
         {
             Caption = "SelectionWatcher",
@@ -138,13 +140,18 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
             return;
         }
 
+        int minSelectionLength = _getMinSelectionLength();
+
         // 1. Try UI Automation first
         string? uiaText = TryReadSelectedTextViaUIA(hwnd);
         if (!string.IsNullOrWhiteSpace(uiaText))
         {
-             SelectionCaptured?.Invoke(
-                this,
-                new SelectionCapturedEventArgs(uiaText, hwnd, SelectionSource.TextSelection, DateTime.UtcNow));
+             if (uiaText!.Trim().Length >= minSelectionLength)
+             {
+                 SelectionCaptured?.Invoke(
+                    this,
+                    new SelectionCapturedEventArgs(uiaText, hwnd, SelectionSource.TextSelection, DateTime.UtcNow));
+             }
              return;
         }
 
@@ -156,9 +163,12 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
             return;
         }
 
-        SelectionCaptured?.Invoke(
-            this,
-            new SelectionCapturedEventArgs(text, hwnd, SelectionSource.TextSelection, DateTime.UtcNow));
+        if (text!.Trim().Length >= minSelectionLength)
+        {
+            SelectionCaptured?.Invoke(
+                this,
+                new SelectionCapturedEventArgs(text, hwnd, SelectionSource.TextSelection, DateTime.UtcNow));
+        }
     }
 
     private string? TryReadSelectedTextViaUIA(IntPtr hwnd)

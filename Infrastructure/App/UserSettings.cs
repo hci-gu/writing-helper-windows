@@ -19,6 +19,8 @@ internal sealed class UserSettings
 
     public bool AutoShowOnSelection { get; set; } = true;
 
+    public int MinSelectionLength { get; set; } = 5;
+
     public static UserSettings Load()
     {
         try

@@ -8,6 +8,7 @@ public sealed class SettingsForm : Form
 {
     private readonly TextBox _apiKeyTextBox;
     private readonly Label _statusLabel;
+    private readonly NumericUpDown _minSelectionLengthBox;
     private readonly TextBox _promptPreambleTextBox;
 
     public SettingsForm()
@@ -26,13 +27,15 @@ public sealed class SettingsForm : Form
         var layout = new TableLayoutPanel
         {
             ColumnCount = 1,
-            RowCount = 8,
+            RowCount = 10,
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             Dock = DockStyle.Fill,
         };
 
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -65,6 +68,26 @@ public sealed class SettingsForm : Form
         {
             Width = 360,
             UseSystemPasswordChar = true,
+            Font = Theme.BodyFont,
+            ForeColor = Theme.TextColor,
+            BackColor = Theme.SurfaceColor,
+            BorderStyle = BorderStyle.FixedSingle
+        };
+
+        var minSelectionLengthLabel = new Label
+        {
+            AutoSize = true,
+            Text = "Minimum Selection Length",
+            Margin = new Padding(0, Theme.PaddingMedium, 0, 4),
+            Font = Theme.ButtonFont,
+            ForeColor = Theme.TextColor
+        };
+
+        _minSelectionLengthBox = new NumericUpDown
+        {
+            Width = 120,
+            Minimum = 1,
+            Maximum = 1000,
             Font = Theme.BodyFont,
             ForeColor = Theme.TextColor,
             BackColor = Theme.SurfaceColor,
@@ -139,10 +162,12 @@ public sealed class SettingsForm : Form
         layout.Controls.Add(apiKeyLabel, 0, 1);
         layout.Controls.Add(_apiKeyTextBox, 0, 2);
         layout.Controls.Add(_statusLabel, 0, 3);
-        layout.Controls.Add(promptPreambleLabel, 0, 4);
-        layout.Controls.Add(_promptPreambleTextBox, 0, 5);
-        layout.Controls.Add(promptInstructions, 0, 6);
-        layout.Controls.Add(buttonPanel, 0, 7);
+        layout.Controls.Add(minSelectionLengthLabel, 0, 4);
+        layout.Controls.Add(_minSelectionLengthBox, 0, 5);
+        layout.Controls.Add(promptPreambleLabel, 0, 6);
+        layout.Controls.Add(_promptPreambleTextBox, 0, 7);
+        layout.Controls.Add(promptInstructions, 0, 8);
+        layout.Controls.Add(buttonPanel, 0, 9);
 
         Controls.Add(layout);
     }
@@ -157,6 +182,12 @@ public sealed class SettingsForm : Form
     {
         get => string.IsNullOrWhiteSpace(_promptPreambleTextBox.Text) ? null : _promptPreambleTextBox.Text.Trim();
         set => _promptPreambleTextBox.Text = value ?? string.Empty;
+    }
+
+    public int MinSelectionLength
+    {
+        get => (int)_minSelectionLengthBox.Value;
+        set => _minSelectionLengthBox.Value = value;
     }
 
     public bool RequireApiKey { get; set; }

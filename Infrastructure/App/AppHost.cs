@@ -57,7 +57,7 @@ internal sealed class AppHost : ApplicationContext
         _popupController = new PopupController(_actions, _clipboardService, _logger, _responseSuggestionService);
         _popupController.PopupClosed += (_, __) => _workflow.MarkSelectionHandled();
 
-        _selectionWatcher = new SelectionWatcher(_clipboardService, _logger, _mainForm, () => _userSettings.AutoShowOnSelection);
+        _selectionWatcher = new SelectionWatcher(_clipboardService, _logger, _mainForm, () => _userSettings.AutoShowOnSelection, () => _userSettings.MinSelectionLength);
         _selectionWatcher.SelectionCaptured += OnSelectionCaptured;
 
         MainForm = _mainForm;
@@ -135,6 +135,7 @@ internal sealed class AppHost : ApplicationContext
         {
             OpenAiApiKey = _userSettings.OpenAiApiKey,
             PromptPreamble = _userSettings.PromptPreamble,
+            MinSelectionLength = _userSettings.MinSelectionLength,
             RequireApiKey = requireApiKey
         };
 
@@ -142,6 +143,7 @@ internal sealed class AppHost : ApplicationContext
         {
             _userSettings.OpenAiApiKey = dialog.OpenAiApiKey;
             _userSettings.PromptPreamble = dialog.PromptPreamble;
+            _userSettings.MinSelectionLength = dialog.MinSelectionLength;
             _userSettings.Save();
             _openAiClientFactory.InvalidateClient();
         }
