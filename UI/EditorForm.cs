@@ -19,6 +19,7 @@ public sealed class EditorForm : Form
     private readonly FlowLayoutPanel _buttonPanel;
     private readonly FlowLayoutPanel _loadingPanel;
     private readonly Label _loadingLabel;
+    private readonly TextBox _responseTextBox;
     private readonly List<ContextMenuStrip> _optionMenus = new();
     private bool _isBusy;
 
@@ -35,16 +36,18 @@ public sealed class EditorForm : Form
         var layout = new TableLayoutPanel
         {
             ColumnCount = 1,
-            RowCount = 5,
+            RowCount = 7,
             Dock = DockStyle.Fill,
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
         };
 
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         _messageLabel = new Label
@@ -102,6 +105,25 @@ public sealed class EditorForm : Form
 
         InitializeActionButtons();
 
+        var responseLabel = new Label
+        {
+            AutoSize = true,
+            Text = "Response",
+            Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+            Margin = new Padding(0, 18, 0, 0)
+        };
+
+        _responseTextBox = new TextBox
+        {
+            Multiline = true,
+            ScrollBars = ScrollBars.Vertical,
+            Dock = DockStyle.Fill,
+            Font = new Font("Segoe UI", 10F),
+            Margin = new Padding(0, 8, 0, 0),
+            ReadOnly = true,
+            BackColor = SystemColors.Window
+        };
+
         var closeButtonPanel = new FlowLayoutPanel
         {
             AutoSize = true,
@@ -124,7 +146,9 @@ public sealed class EditorForm : Form
         layout.Controls.Add(_inputTextBox, 0, 1);
         layout.Controls.Add(_loadingPanel, 0, 2);
         layout.Controls.Add(_buttonPanel, 0, 3);
-        layout.Controls.Add(closeButtonPanel, 0, 4);
+        layout.Controls.Add(responseLabel, 0, 4);
+        layout.Controls.Add(_responseTextBox, 0, 5);
+        layout.Controls.Add(closeButtonPanel, 0, 6);
 
         Controls.Add(layout);
     }
@@ -208,6 +232,7 @@ public sealed class EditorForm : Form
         }
 
         SetBusyState(true, $"Running {action.DisplayName}…");
+        _responseTextBox.Text = string.Empty;
 
         try
         {
@@ -224,10 +249,10 @@ public sealed class EditorForm : Form
                 return;
             }
 
-            _inputTextBox.Text = result.ReplacementText;
-            _inputTextBox.SelectionStart = 0;
-            _inputTextBox.SelectionLength = _inputTextBox.TextLength;
-            UpdateMessage(result.SuccessMessage ?? $"{action.DisplayName} applied. Review the updated text.");
+            _responseTextBox.Text = result.ReplacementText;
+            _responseTextBox.SelectionStart = 0;
+            _responseTextBox.SelectionLength = _responseTextBox.TextLength;
+            UpdateMessage(result.SuccessMessage ?? $"{action.DisplayName} applied. Review the response below.");
         }
         catch (Exception ex)
         {
