@@ -101,7 +101,7 @@ public sealed class PopupForm : Form
         _messageLabel = new Label
         {
             AutoSize = true,
-            MaximumSize = new Size(480, 0),
+            MaximumSize = new Size(Theme.PopupWidth, 0),
             Text = _defaultMessage,
             Font = Theme.BodyFont,
             ForeColor = Theme.TextColor,
@@ -165,9 +165,9 @@ public sealed class PopupForm : Form
             ForeColor = Theme.TextColor,
             BackColor = Theme.SurfaceColor,
             BorderStyle = BorderStyle.None,
-            MinimumSize = new Size(480, 80),
-            MaximumSize = new Size(480, 600),
-            Size = new Size(480, 100),
+            MinimumSize = new Size(Theme.PopupWidth, 80),
+            MaximumSize = new Size(Theme.PopupWidth, 600),
+            Size = new Size(Theme.PopupWidth, 100),
             Margin = new Padding(0, 12, 0, 0),
             Text = selectionText ?? string.Empty,
             AcceptsReturn = true,
@@ -253,7 +253,7 @@ public sealed class PopupForm : Form
         _respondStatusLabel = new Label
         {
             AutoSize = true,
-            MaximumSize = new Size(480, 0),
+            MaximumSize = new Size(Theme.PopupWidth, 0),
             Text = "Choose how you'd like to respond.",
             Font = Theme.BodyFont,
             ForeColor = Theme.TextColor,
@@ -530,7 +530,7 @@ public sealed class PopupForm : Form
         var width = _selectionTextBox.ClientSize.Width;
         if (width <= 0)
         {
-            width = 480 - SystemInformation.VerticalScrollBarWidth - 4;
+            width = Theme.PopupWidth - SystemInformation.VerticalScrollBarWidth - 4;
         }
 
         int newHeight;
@@ -619,7 +619,7 @@ public sealed class PopupForm : Form
             TextAlign = ContentAlignment.MiddleLeft,
             Text = BuildRespondButtonText(suggestion),
             Padding = new Padding(14, 8, 14, 8),
-            MaximumSize = new Size(480, 0),
+            MaximumSize = new Size(Theme.PopupWidth, 0),
             Margin = new Padding(_respondButtonPanel.Controls.Count > 0 ? 8 : 0, 0, 0, 8),
             BackColor = palette.Back,
             ForeColor = palette.Fore,

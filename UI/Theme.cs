@@ -35,4 +35,6 @@ public static class Theme
     public const int PaddingSmall = 8;
     public const int PaddingMedium = 16;
     public const int PaddingLarge = 24;
+
+    public const int PopupWidth = 640;
 }
