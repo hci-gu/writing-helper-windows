@@ -20,6 +20,7 @@ namespace GlobalTextHelper
         private bool _isReadingSelection;
         private string? _lastSelectionText;
         private DateTime _lastSelectionShownAt;
+        private bool _autoShowOnSelection = true;
 
         // Clipboard listener
         [DllImport("user32.dll", SetLastError = true)]
@@ -98,6 +99,15 @@ namespace GlobalTextHelper
 
             // Tray icon + menu
             _menu = new ContextMenuStrip();
+            var autoShowItem = new ToolStripMenuItem("Auto-Show on Selection");
+            autoShowItem.Checked = _autoShowOnSelection;
+            autoShowItem.Click += (s, e) =>
+            {
+                _autoShowOnSelection = !_autoShowOnSelection;
+                autoShowItem.Checked = _autoShowOnSelection;
+            };
+            _menu.Items.Add(autoShowItem);
+            _menu.Items.Add(new ToolStripSeparator());
             _menu.Items.Add("Exit", null, (s, e) => Application.Exit());
 
             _tray = new NotifyIcon
@@ -186,6 +196,9 @@ namespace GlobalTextHelper
                 return;
 
             if (_isReplacingSelection)
+                return;
+
+            if (!_autoShowOnSelection)
                 return;
 
             // Marshal to UI thread to interact with our forms
