@@ -25,7 +25,7 @@ namespace GlobalTextHelper.Infrastructure.OpenAi
         public OpenAiChatClient(string apiKey, string model = "gpt-4o-mini", HttpClient? httpClient = null, Uri? baseUri = null)
         {
             if (string.IsNullOrWhiteSpace(apiKey))
-                throw new ArgumentException("An OpenAI API key must be provided.", nameof(apiKey));
+                throw new ArgumentException("En OpenAI-API-nyckel måste anges.", nameof(apiKey));
 
             _model = string.IsNullOrWhiteSpace(model) ? "gpt-4o-mini" : model;
 
@@ -62,7 +62,7 @@ namespace GlobalTextHelper.Infrastructure.OpenAi
         {
             string? apiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
             if (string.IsNullOrWhiteSpace(apiKey))
-                throw new InvalidOperationException("Set the OPENAI_API_KEY environment variable before using OpenAI features.");
+                throw new InvalidOperationException("Ställ in miljövariabeln OPENAI_API_KEY innan du använder OpenAI-funktioner.");
 
             string? baseUrl = Environment.GetEnvironmentVariable("OPENAI_API_BASE");
             Uri? baseUri = null;
@@ -70,7 +70,7 @@ namespace GlobalTextHelper.Infrastructure.OpenAi
             {
                 if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out baseUri))
                 {
-                    throw new InvalidOperationException("The OPENAI_API_BASE environment variable must be an absolute URL.");
+                    throw new InvalidOperationException("Miljövariabeln OPENAI_API_BASE måste vara en absolut URL.");
                 }
 
                 if (!baseUri.AbsoluteUri.EndsWith('/'))
@@ -85,7 +85,7 @@ namespace GlobalTextHelper.Infrastructure.OpenAi
         public async Task<string> SendPromptAsync(string prompt, double temperature = 0.7, int? maxOutputTokens = null, CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrWhiteSpace(prompt))
-                throw new ArgumentException("Prompt cannot be empty.", nameof(prompt));
+                throw new ArgumentException("Prompten får inte vara tom.", nameof(prompt));
 
             var request = new ChatCompletionRequest(
                 Model: _model,
@@ -105,11 +105,11 @@ namespace GlobalTextHelper.Infrastructure.OpenAi
             {
                 var error = TryDeserialize<OpenAiErrorResponse>(json);
                 string message = error?.Error?.Message ?? $"HTTP {(int)response.StatusCode} {response.ReasonPhrase}";
-                throw new HttpRequestException($"OpenAI request failed: {message}");
+                throw new HttpRequestException($"OpenAI-begäran misslyckades: {message}");
             }
 
             var completion = TryDeserialize<ChatCompletionResponse>(json)
-                ?? throw new InvalidOperationException("OpenAI returned an unexpected response.");
+                ?? throw new InvalidOperationException("OpenAI returnerade ett oväntat svar.");
 
             string? content = completion.Choices?
                 .OrderBy(choice => choice.Index)
@@ -117,7 +117,7 @@ namespace GlobalTextHelper.Infrastructure.OpenAi
                 .FirstOrDefault(c => !string.IsNullOrEmpty(c));
 
             if (string.IsNullOrEmpty(content))
-                throw new InvalidOperationException("OpenAI response did not include any message content.");
+                throw new InvalidOperationException("OpenAI-svaret innehöll inget meddelandeinnehåll.");
 
             return content;
         }

@@ -13,7 +13,7 @@ public sealed class SettingsForm : Form
 
     public SettingsForm()
     {
-        Text = "Settings";
+        Text = "Inställningar";
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;
@@ -49,7 +49,7 @@ public sealed class SettingsForm : Form
         {
             AutoSize = true,
             MaximumSize = new Size(380, 0),
-            Text = "Provide your OpenAI API key to enable the assistant. If the OPENAI_API_KEY environment variable is set, it will be used instead.",
+            Text = "Ange din OpenAI-API-nyckel för att aktivera assistenten. Om miljövariabeln OPENAI_API_KEY är satt används den i stället.",
             Font = Theme.BodyFont,
             ForeColor = Theme.TextColor,
             Margin = new Padding(0, 0, 0, Theme.PaddingMedium)
@@ -58,7 +58,7 @@ public sealed class SettingsForm : Form
         var apiKeyLabel = new Label
         {
             AutoSize = true,
-            Text = "OpenAI API Key",
+            Text = "OpenAI-API-nyckel",
             Margin = new Padding(0, 0, 0, 4),
             Font = Theme.ButtonFont, // Semibold
             ForeColor = Theme.TextColor
@@ -77,7 +77,7 @@ public sealed class SettingsForm : Form
         var minSelectionLengthLabel = new Label
         {
             AutoSize = true,
-            Text = "Minimum Selection Length",
+            Text = "Minsta markeringslängd",
             Margin = new Padding(0, Theme.PaddingMedium, 0, 4),
             Font = Theme.ButtonFont,
             ForeColor = Theme.TextColor
@@ -97,7 +97,7 @@ public sealed class SettingsForm : Form
         var promptPreambleLabel = new Label
         {
             AutoSize = true,
-            Text = "About you (optional)",
+            Text = "Om dig (valfritt)",
             Margin = new Padding(0, Theme.PaddingMedium, 0, 4),
             Font = Theme.ButtonFont,
             ForeColor = Theme.TextColor
@@ -122,7 +122,7 @@ public sealed class SettingsForm : Form
             MaximumSize = new Size(380, 0),
             ForeColor = Theme.TextMutedColor,
             Font = Theme.SmallFont,
-            Text = "Anything you write here will be added to the beginning of prompts so the assistant knows more about you.",
+            Text = "Allt du skriver här läggs till i början av uppdragen så att assistenten vet mer om dig.",
             Margin = new Padding(0, 4, 0, 0)
         };
 
@@ -143,10 +143,10 @@ public sealed class SettingsForm : Form
             Margin = new Padding(0, 14, 0, 0),
         };
 
-        var saveButton = ActionButtonFactory.CreatePrimaryActionButton("Save");
+        var saveButton = ActionButtonFactory.CreatePrimaryActionButton("Spara");
         saveButton.DialogResult = DialogResult.OK;
 
-        var cancelButton = ActionButtonFactory.CreateSecondaryActionButton("Cancel");
+        var cancelButton = ActionButtonFactory.CreateSecondaryActionButton("Avbryt");
         cancelButton.DialogResult = DialogResult.Cancel;
         cancelButton.Margin = new Padding(0, 0, 8, 0);
 
@@ -201,6 +201,6 @@ public sealed class SettingsForm : Form
             return;
         }
 
-        _statusLabel.Text = "An API key is required.";
+        _statusLabel.Text = "En API-nyckel krävs.";
     }
 }

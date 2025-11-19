@@ -48,7 +48,7 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
 
         if (!AddClipboardFormatListener(Handle))
         {
-            throw new InvalidOperationException("Unable to register clipboard listener.");
+            throw new InvalidOperationException("Det går inte att registrera en urklippslyssnare.");
         }
 
         _winEventDelegate = OnWinEvent;
@@ -63,7 +63,7 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
 
         if (_winEventHook == IntPtr.Zero)
         {
-            throw new InvalidOperationException("Unable to subscribe to text selection events.");
+            throw new InvalidOperationException("Det går inte att prenumerera på händelser för textmarkeringar.");
         }
     }
 
@@ -102,7 +102,7 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogError("Failed to read clipboard", ex);
+            _logger.LogError("Det gick inte att läsa från urklippet", ex);
         }
     }
 

@@ -46,7 +46,7 @@ public sealed class PopupController : IDisposable
         ClosePopup();
         _currentContext = context;
 
-        var popup = new PopupForm("Choose an action for the selected text.", 30000, context.OriginalText);
+        var popup = new PopupForm("Välj en åtgärd för den markerade texten.", 30000, context.OriginalText);
         popup.ActionInvoked += HandleActionInvokedAsync;
         popup.RespondRequested += HandleRespondRequestedAsync;
         popup.FormClosed += (_, __) =>
@@ -85,8 +85,8 @@ public sealed class PopupController : IDisposable
 
         var popup = _activePopup;
         popup.StopAutoClose();
-        popup.UpdateMessage("Generating response options…");
-        popup.SetRespondStatus("Gathering response ideas…");
+        popup.UpdateMessage("Tar fram svarsalternativ…");
+        popup.SetRespondStatus("Samlar in svarsidéer…");
         popup.SetBusyState(true);
 
         try
@@ -97,15 +97,15 @@ public sealed class PopupController : IDisposable
 
             popup.SetBusyState(false);
             popup.SetRespondSuggestions(suggestions);
-            popup.UpdateMessage("Choose how you would like to respond.");
-            popup.SetRespondStatus("Select a response to populate it below.");
+            popup.UpdateMessage("Välj hur du vill svara.");
+            popup.SetRespondStatus("Välj ett svar för att fylla i det nedan.");
         }
         catch (Exception ex)
         {
             popup.SetBusyState(false);
             _logger.LogError("Failed to load response suggestions", ex);
-            popup.SetRespondStatus("Unable to load response options.");
-            popup.UpdateMessage("Unable to load response options right now.");
+            popup.SetRespondStatus("Det gick inte att läsa in svarsalternativ.");
+            popup.UpdateMessage("Det går inte att läsa in svarsalternativ just nu.");
             popup.RestartAutoClose(4000);
         }
     }
@@ -130,7 +130,7 @@ public sealed class PopupController : IDisposable
 
         var popup = _activePopup;
         popup.StopAutoClose();
-        popup.UpdateMessage($"Running {action.DisplayName}…");
+        popup.UpdateMessage($"Kör {action.DisplayName}…");
         popup.SetBusyState(true);
 
         try
@@ -139,7 +139,7 @@ public sealed class PopupController : IDisposable
             if (!result.Success)
             {
                 popup.SetBusyState(false);
-                popup.UpdateMessage(result.Message ?? "Action failed.");
+                popup.UpdateMessage(result.Message ?? "Åtgärden misslyckades.");
                 popup.RestartAutoClose(4000);
                 return;
             }
@@ -147,7 +147,7 @@ public sealed class PopupController : IDisposable
             if (string.IsNullOrWhiteSpace(result.ReplacementText))
             {
                 popup.SetBusyState(false);
-                popup.UpdateMessage(result.Message ?? "The selected action did not return any text.");
+                popup.UpdateMessage(result.Message ?? "Den valda åtgärden gav ingen text.");
                 popup.RestartAutoClose(2500);
                 return;
             }
@@ -155,7 +155,7 @@ public sealed class PopupController : IDisposable
             popup.SetBusyState(false);
             var previewResult = await popup.ShowReplacementPreviewAsync(
                 result.ReplacementText,
-                result.PreviewAcceptLabel ?? "Use Replacement");
+                result.PreviewAcceptLabel ?? "Använd ersättning");
 
             popup.ClearActionButtons();
 
@@ -171,16 +171,16 @@ public sealed class PopupController : IDisposable
                         replacementText,
                         _currentContext.SourceWindow,
                         CancellationToken.None);
-                    popup.UpdateMessage(result.SuccessMessage ?? "Replacement inserted.");
+                    popup.UpdateMessage(result.SuccessMessage ?? "Ersättningen har infogats.");
                     popup.RestartAutoClose(1500);
                     break;
                 case ReplacementPreviewResult.CopyToClipboard:
                     await _clipboardService.CopyToClipboardAsync(replacementText, CancellationToken.None);
-                    popup.UpdateMessage("Replacement copied to clipboard.");
+                    popup.UpdateMessage("Ersättningen har kopierats till urklipp.");
                     popup.RestartAutoClose(1500);
                     break;
                 default:
-                    popup.UpdateMessage("Replacement canceled.");
+                    popup.UpdateMessage("Ersättningen avbröts.");
                     popup.RestartAutoClose(1500);
                     break;
             }
@@ -189,7 +189,7 @@ public sealed class PopupController : IDisposable
         {
             popup.SetBusyState(false);
             _logger.LogError($"Action '{action.Id}' failed", ex);
-            popup.UpdateMessage("Unable to complete the selected action.");
+            popup.UpdateMessage("Det gick inte att slutföra den valda åtgärden.");
             popup.RestartAutoClose(4000);
         }
     }

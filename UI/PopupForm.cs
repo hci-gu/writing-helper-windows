@@ -95,7 +95,7 @@ public sealed class PopupForm : Form
         };
 
         _defaultMessage = string.IsNullOrWhiteSpace(message)
-            ? "Choose what to do with the selected text."
+            ? "Välj vad du vill göra med den markerade texten."
             : message;
 
         _messageLabel = new Label
@@ -189,10 +189,10 @@ public sealed class PopupForm : Form
             Visible = true
         };
 
-        var rewriteButton = ActionButtonFactory.CreatePrimaryActionButton("Rewrite selected text");
+        var rewriteButton = ActionButtonFactory.CreatePrimaryActionButton("Skriv om markerad text");
         rewriteButton.Click += (_, __) => ShowRewriteActions();
 
-        var respondButton = ActionButtonFactory.CreateSecondaryActionButton("Respond to selected text");
+        var respondButton = ActionButtonFactory.CreateSecondaryActionButton("Svara på markerad text");
         respondButton.Margin = new Padding(8, 0, 0, 0);
         respondButton.Click += async (_, __) => await BeginRespondFlowAsync();
 
@@ -220,7 +220,7 @@ public sealed class PopupForm : Form
             Margin = new Padding(0, 12, 0, 0)
         };
 
-        var rewriteBackButton = ActionButtonFactory.CreateBackNavigationButton("< Back");
+        var rewriteBackButton = ActionButtonFactory.CreateBackNavigationButton("< Tillbaka");
         rewriteBackButton.Click += (_, __) => ShowModeSelection();
         rewriteBackRow.Controls.Add(rewriteBackButton);
 
@@ -254,7 +254,7 @@ public sealed class PopupForm : Form
         {
             AutoSize = true,
             MaximumSize = new Size(Theme.PopupWidth, 0),
-            Text = "Choose how you'd like to respond.",
+            Text = "Välj hur du vill svara.",
             Font = Theme.BodyFont,
             ForeColor = Theme.TextColor,
             Margin = new Padding(0, 0, 0, 8)
@@ -296,7 +296,7 @@ public sealed class PopupForm : Form
             Margin = new Padding(0, 12, 0, 0)
         };
 
-        var respondBackButton = ActionButtonFactory.CreateBackNavigationButton("< Back");
+        var respondBackButton = ActionButtonFactory.CreateBackNavigationButton("< Tillbaka");
         respondBackButton.Click += (_, __) => ShowModeSelection();
         respondBackRow.Controls.Add(respondBackButton);
 
@@ -328,7 +328,7 @@ public sealed class PopupForm : Form
         _loadingLabel = new Label
         {
             AutoSize = true,
-            Text = "Waiting for a response…",
+            Text = "Väntar på ett svar…",
             Font = new Font("Segoe UI", 9F, FontStyle.Italic),
             ForeColor = Theme.TextMutedColor,
             Margin = new Padding(0, 2, 0, 0)
@@ -447,7 +447,7 @@ public sealed class PopupForm : Form
         }
 
         _currentView = PopupViewMode.RewriteActions;
-        UpdateMessage("Choose a rewrite option for the selected text.");
+        UpdateMessage("Välj hur du vill skriva om den markerade texten.");
         UpdateActionAreaVisibility();
     }
 
@@ -455,7 +455,7 @@ public sealed class PopupForm : Form
     {
         ClearActionButtons();
         _currentView = PopupViewMode.Respond;
-        UpdateMessage("Respond to the selected text.");
+        UpdateMessage("Svara på den markerade texten.");
         UpdateActionAreaVisibility();
     }
 
@@ -467,13 +467,13 @@ public sealed class PopupForm : Form
         }
 
         ShowRespondView();
-        SetRespondStatus("Generating response ideas…");
+        SetRespondStatus("Tar fram svarsidéer…");
         ClearRespondButtons();
 
         var handler = RespondRequested;
         if (handler is null)
         {
-            SetRespondStatus("Response suggestions are not available.");
+            SetRespondStatus("Inga svarsförslag är tillgängliga.");
             return;
         }
 
@@ -484,7 +484,7 @@ public sealed class PopupForm : Form
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine(ex);
-            SetRespondStatus("Unable to load response options.");
+            SetRespondStatus("Det gick inte att läsa in svarsalternativ.");
         }
     }
 
@@ -569,7 +569,7 @@ public sealed class PopupForm : Form
         var list = suggestions?.ToList() ?? new List<ResponseSuggestion>();
         if (list.Count == 0)
         {
-            SetRespondStatus("No response suggestions were returned.");
+            SetRespondStatus("Inga svarsförslag returnerades.");
             UpdateActionAreaVisibility();
             return;
         }
@@ -664,9 +664,9 @@ public sealed class PopupForm : Form
     {
         return tone switch
         {
-            ResponseTone.Affirmative => "Confirming yes",
-            ResponseTone.Negative => "Politely decline",
-            _ => "Ask for details"
+            ResponseTone.Affirmative => "Bekräftar ja",
+            ResponseTone.Negative => "Tackar nej vänligt",
+            _ => "Ber om mer information"
         };
     }
 
@@ -679,8 +679,8 @@ public sealed class PopupForm : Form
 
         StopAutoClose();
         SetSelectionText(suggestion.FullResponse);
-        SetRespondStatus("Response inserted below. Edit or copy before sending.");
-        UpdateMessage("A drafted response has been inserted below.");
+        SetRespondStatus("Svaret har lagts in nedan. Redigera eller kopiera innan du skickar.");
+        UpdateMessage("Ett utkast till svar har lagts in nedan.");
     }
 
     public string GetSelectionText()
@@ -718,8 +718,8 @@ public sealed class PopupForm : Form
     public Task<ReplacementPreviewResult> ShowReplacementPreviewAsync(
         string replacementText,
         string approveButtonText,
-        string copyButtonText = "Copy to Clipboard",
-        string cancelButtonText = "Cancel")
+        string copyButtonText = "Kopiera till urklipp",
+        string cancelButtonText = "Avbryt")
     {
         if (IsDisposed)
             throw new ObjectDisposedException(nameof(PopupForm));
@@ -730,7 +730,7 @@ public sealed class PopupForm : Form
         _confirmationCompletion = new TaskCompletionSource<ReplacementPreviewResult>();
 
         _messageLabel.MaximumSize = new Size(480, 0);
-        UpdateMessage("Review or tweak the updated text below.");
+        UpdateMessage("Granska eller justera den uppdaterade texten nedan.");
         SetSelectionText(replacementText);
 
         _buttonPanel.Controls.Clear();
