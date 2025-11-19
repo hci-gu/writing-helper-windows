@@ -36,10 +36,12 @@ internal sealed class AppHost : ApplicationContext
         _openAiClientFactory = new OpenAiClientFactory(GetStoredApiKey);
 
         _mainForm = new MainForm();
+        _mainForm.AutoShowOnSelection = _userSettings.AutoShowOnSelection;
         _mainForm.CreateControl();
         _mainForm.ExitRequested += (_, __) => ExitThread();
         _mainForm.SettingsRequested += OnSettingsRequested;
         _mainForm.EditorRequested += OnEditorRequested;
+        _mainForm.AutoShowOnSelectionChanged += OnAutoShowOnSelectionChanged;
 
         var promptBuilder = new TextSelectionPromptBuilder(() => _userSettings.PromptPreamble);
         _responseSuggestionService = new ResponseSuggestionService(
@@ -55,7 +57,7 @@ internal sealed class AppHost : ApplicationContext
         _popupController = new PopupController(_actions, _clipboardService, _logger, _responseSuggestionService);
         _popupController.PopupClosed += (_, __) => _workflow.MarkSelectionHandled();
 
-        _selectionWatcher = new SelectionWatcher(_clipboardService, _logger, _mainForm);
+        _selectionWatcher = new SelectionWatcher(_clipboardService, _logger, _mainForm, () => _userSettings.AutoShowOnSelection);
         _selectionWatcher.SelectionCaptured += OnSelectionCaptured;
 
         MainForm = _mainForm;
@@ -103,6 +105,7 @@ internal sealed class AppHost : ApplicationContext
             _popupController.Dispose();
             _mainForm.SettingsRequested -= OnSettingsRequested;
             _mainForm.EditorRequested -= OnEditorRequested;
+            _mainForm.AutoShowOnSelectionChanged -= OnAutoShowOnSelectionChanged;
             _mainForm.Dispose();
         }
 
@@ -145,6 +148,12 @@ internal sealed class AppHost : ApplicationContext
     }
 
     private void OnSettingsRequested(object? sender, EventArgs e) => ShowSettingsDialog();
+
+    private void OnAutoShowOnSelectionChanged(object? sender, EventArgs e)
+    {
+        _userSettings.AutoShowOnSelection = _mainForm.AutoShowOnSelection;
+        _userSettings.Save();
+    }
 
     private void OnEditorRequested(object? sender, EventArgs e)
     {

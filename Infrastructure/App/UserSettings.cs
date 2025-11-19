@@ -17,6 +17,8 @@ internal sealed class UserSettings
 
     public string? PromptPreamble { get; set; }
 
+    public bool AutoShowOnSelection { get; set; } = true;
+
     public static UserSettings Load()
     {
         try

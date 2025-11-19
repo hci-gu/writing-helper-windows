@@ -1,8 +1,10 @@
 using System;
 using System.ComponentModel;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
+using System.Windows.Automation;
 using System.Windows.Forms;
 using GlobalTextHelper.Domain.Selection;
 using GlobalTextHelper.Infrastructure.Clipboard;
@@ -22,15 +24,17 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
     private readonly IClipboardService _clipboardService;
     private readonly ILogger _logger;
     private readonly ISynchronizeInvoke _dispatcher;
+    private readonly Func<bool> _isAutoShowEnabled;
     private WinEventDelegate? _winEventDelegate;
     private IntPtr _winEventHook = IntPtr.Zero;
     private bool _disposed;
 
-    public SelectionWatcher(IClipboardService clipboardService, ILogger logger, ISynchronizeInvoke dispatcher)
+    public SelectionWatcher(IClipboardService clipboardService, ILogger logger, ISynchronizeInvoke dispatcher, Func<bool> isAutoShowEnabled)
     {
         _clipboardService = clipboardService;
         _logger = logger;
         _dispatcher = dispatcher;
+        _isAutoShowEnabled = isAutoShowEnabled;
         CreateHandle(new CreateParams
         {
             Caption = "SelectionWatcher",
@@ -112,6 +116,11 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
             return;
         }
 
+        if (!_isAutoShowEnabled())
+        {
+            return;
+        }
+
         if (_dispatcher.InvokeRequired)
         {
             _dispatcher.BeginInvoke(new MethodInvoker(() => HandleSelectionCapture(hwnd)), Array.Empty<object?>());
@@ -129,6 +138,17 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
             return;
         }
 
+        // 1. Try UI Automation first
+        string? uiaText = TryReadSelectedTextViaUIA(hwnd);
+        if (!string.IsNullOrWhiteSpace(uiaText))
+        {
+             SelectionCaptured?.Invoke(
+                this,
+                new SelectionCapturedEventArgs(uiaText, hwnd, SelectionSource.TextSelection, DateTime.UtcNow));
+             return;
+        }
+
+        // 2. Fallback to Clipboard
         var task = _clipboardService.CaptureSelectionAsync(hwnd, CancellationToken.None);
         string? text = task.GetAwaiter().GetResult();
         if (string.IsNullOrWhiteSpace(text))
@@ -139,6 +159,35 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
         SelectionCaptured?.Invoke(
             this,
             new SelectionCapturedEventArgs(text, hwnd, SelectionSource.TextSelection, DateTime.UtcNow));
+    }
+
+    private string? TryReadSelectedTextViaUIA(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero)
+            return null;
+
+        try
+        {
+            var element = AutomationElement.FromHandle(hwnd);
+            if (element == null)
+                return null;
+
+            if (element.TryGetCurrentPattern(TextPattern.Pattern, out object patternObj))
+            {
+                var textPattern = (TextPattern)patternObj;
+                var ranges = textPattern.GetSelection();
+                if (ranges != null && ranges.Length > 0)
+                {
+                    return string.Join(Environment.NewLine, ranges.Select(r => r.GetText(-1).Trim()));
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError("UIA error", ex);
+        }
+
+        return null;
     }
 
     private static bool HasNonEmptySelection(IntPtr hwnd)
