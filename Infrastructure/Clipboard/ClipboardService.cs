@@ -97,55 +97,61 @@ public sealed class ClipboardService : IClipboardService
             throw new InvalidOperationException("Replacement text cannot be empty.");
         }
 
+        // 1. Prepare Clipboard
         BeginClipboardUpdate();
-
         IDataObject? snapshot = null;
         try
         {
             snapshot = System.Windows.Forms.Clipboard.GetDataObject();
         }
-        catch (Exception)
-        {
-            // Best effort snapshot.
-        }
+        catch { /* Best effort */ }
 
         try
         {
             System.Windows.Forms.Clipboard.SetText(replacementText);
-            // Allow time for the clipboard to update
-            await Task.Delay(50, cancellationToken);
+            // Ensure clipboard update propagates
+            await Task.Delay(100, cancellationToken);
         }
         catch (Exception ex)
         {
             throw new InvalidOperationException("Unable to set clipboard text: " + ex.Message);
         }
 
-        // Try to paste using Windows Messages first (works for Notepad, WordPad, standard text boxes)
-        // This is much more reliable and doesn't require stealing focus.
-        bool pastedViaMessage = false;
+        // 2. Try Direct Message Paste (Most Reliable)
+        // We attempt to find the specific child control that has focus within the target application
+        // and send it a WM_PASTE message directly.
+        bool pasteSuccess = false;
         if (targetWindow != IntPtr.Zero)
         {
-            pastedViaMessage = TryPasteViaMessage(targetWindow);
+            pasteSuccess = TryPasteViaMessage(targetWindow);
         }
 
-        if (!pastedViaMessage)
+        // 3. Fallback to Input Simulation (Ctrl+V)
+        if (!pasteSuccess)
         {
             if (targetWindow != IntPtr.Zero)
             {
+                // Try to bring the window to the foreground
                 var rootWindow = GetAncestor(targetWindow, GA_ROOT);
                 SetForegroundWindow(rootWindow != IntPtr.Zero ? rootWindow : targetWindow);
                 
-                // Verify focus switch before sending input
-                await Task.Delay(200, cancellationToken);
+                // Wait for focus to settle
+                await Task.Delay(250, cancellationToken);
             }
 
+            // Send Ctrl+V
             await SendCtrlShortcutAsync(Keys.V, cancellationToken);
+            
+            // Wait for the application to process the input
+            await Task.Delay(500, cancellationToken);
+        }
+        else
+        {
+            // If we pasted via message, it's usually synchronous, but give it a tiny moment just in case
+            await Task.Delay(50, cancellationToken);
         }
 
-        // Give the target application some time to process the paste command
-        // before we restore the original clipboard content.
-        await Task.Delay(500, cancellationToken);
-
+        // 4. Restore Clipboard
         try
         {
             if (snapshot is not null)
@@ -157,38 +163,69 @@ public sealed class ClipboardService : IClipboardService
                 System.Windows.Forms.Clipboard.SetText(originalText);
             }
         }
-        catch (Exception)
-        {
-            // Allow the system clipboard to recover naturally.
-        }
+        catch { /* Best effort */ }
         finally
         {
             ScheduleClipboardUpdateRelease();
         }
     }
 
-    private bool TryPasteViaMessage(IntPtr hWnd)
+    private bool TryPasteViaMessage(IntPtr mainHandle)
     {
         try
         {
-            var className = GetWindowClassName(hWnd);
-            if (string.IsNullOrEmpty(className))
-                return false;
-
-            // Check for standard edit controls and RichEdit controls
-            if (className.Equals("Edit", StringComparison.OrdinalIgnoreCase) ||
-                className.StartsWith("RICHEDIT", StringComparison.OrdinalIgnoreCase) ||
-                className.Contains("RichEdit", StringComparison.OrdinalIgnoreCase))
+            // 1. Try to find the actual focused control within that thread
+            var targetControl = GetFocusedControlHandle(mainHandle);
+            if (targetControl == IntPtr.Zero)
             {
-                SendMessage(hWnd, WM_PASTE, 0, 0);
+                // Fallback: try the main handle itself (unlikely to work for complex apps like WordPad, but good for simple ones)
+                targetControl = mainHandle;
+            }
+
+            // 2. Check if it's a valid target for WM_PASTE
+            var className = GetWindowClassName(targetControl);
+            if (IsPasteSupportedClass(className))
+            {
+                SendMessage(targetControl, WM_PASTE, 0, 0);
                 return true;
             }
         }
         catch
         {
-            // Fallback to keyboard simulation
+            // Ignore errors and fall back to Ctrl+V
         }
         return false;
+    }
+
+    private IntPtr GetFocusedControlHandle(IntPtr windowHandle)
+    {
+        try
+        {
+            uint threadId = GetWindowThreadProcessId(windowHandle, out _);
+            if (threadId == 0) return IntPtr.Zero;
+
+            var guiInfo = new GUITHREADINFO();
+            guiInfo.cbSize = Marshal.SizeOf(guiInfo);
+
+            if (GetGUIThreadInfo(threadId, ref guiInfo))
+            {
+                // hwndFocus is the window that has keyboard focus
+                if (guiInfo.hwndFocus != IntPtr.Zero)
+                    return guiInfo.hwndFocus;
+            }
+        }
+        catch { /* Best effort */ }
+        
+        return IntPtr.Zero;
+    }
+
+    private static bool IsPasteSupportedClass(string className)
+    {
+        if (string.IsNullOrEmpty(className)) return false;
+        
+        return className.Equals("Edit", StringComparison.OrdinalIgnoreCase) ||
+               className.Contains("RichEdit", StringComparison.OrdinalIgnoreCase) ||
+               className.Equals("TextBox", StringComparison.OrdinalIgnoreCase); // Some .NET apps
     }
 
     private static string GetWindowClassName(IntPtr hwnd)
@@ -342,6 +379,26 @@ public sealed class ClipboardService : IClipboardService
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+    [DllImport("user32.dll")]
+    private static extern bool GetGUIThreadInfo(uint idThread, ref GUITHREADINFO lpgui);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct GUITHREADINFO
+    {
+        public int cbSize;
+        public int flags;
+        public IntPtr hwndActive;
+        public IntPtr hwndFocus;
+        public IntPtr hwndCapture;
+        public IntPtr hwndMenuOwner;
+        public IntPtr hwndMoveSize;
+        public IntPtr hwndCaret;
+        public System.Drawing.Rectangle rcCaret;
+    }
 
     private const uint INPUT_KEYBOARD = 1;
     private const uint KEYEVENTF_KEYUP = 0x0002;
