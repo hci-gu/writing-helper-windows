@@ -533,13 +533,22 @@ public sealed class PopupForm : Form
             width = 480 - SystemInformation.VerticalScrollBarWidth - 4;
         }
 
-        var size = TextRenderer.MeasureText(
-            _selectionTextBox.Text,
-            _selectionTextBox.Font,
-            new Size(width, int.MaxValue),
-            TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl);
+        int newHeight;
+        try
+        {
+            var size = TextRenderer.MeasureText(
+                _selectionTextBox.Text,
+                _selectionTextBox.Font,
+                new Size(width, int.MaxValue),
+                TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl);
+            newHeight = size.Height + 24;
+        }
+        catch (Exception)
+        {
+            // Fallback if measurement fails (e.g. text too long for GDI)
+            newHeight = 100;
+        }
 
-        var newHeight = size.Height + 24;
         const int minHeight = 80;
         const int maxHeight = 500;
 
@@ -806,6 +815,20 @@ public sealed class PopupForm : Form
         PerformLayout();
     }
 
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _timer?.Dispose();
+            foreach (var menu in _optionMenus)
+            {
+                menu.Dispose();
+            }
+            _optionMenus.Clear();
+        }
+        base.Dispose(disposing);
+    }
+
     public void ShowNear(Point initialLocation)
     {
         StartPosition = FormStartPosition.Manual;
@@ -824,7 +847,6 @@ public sealed class PopupForm : Form
             Location = new Point(nx, ny);
         }));
     }
-
 }
 
 internal enum PopupViewMode
