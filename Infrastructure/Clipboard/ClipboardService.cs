@@ -120,16 +120,27 @@ public sealed class ClipboardService : IClipboardService
             throw new InvalidOperationException("Unable to set clipboard text: " + ex.Message);
         }
 
+        // Try to paste using Windows Messages first (works for Notepad, WordPad, standard text boxes)
+        // This is much more reliable and doesn't require stealing focus.
+        bool pastedViaMessage = false;
         if (targetWindow != IntPtr.Zero)
         {
-            var rootWindow = GetAncestor(targetWindow, GA_ROOT);
-            SetForegroundWindow(rootWindow != IntPtr.Zero ? rootWindow : targetWindow);
-            
-            // Verify focus switch before sending input
-            await Task.Delay(200, cancellationToken);
+            pastedViaMessage = TryPasteViaMessage(targetWindow);
         }
 
-        await SendCtrlShortcutAsync(Keys.V, cancellationToken);
+        if (!pastedViaMessage)
+        {
+            if (targetWindow != IntPtr.Zero)
+            {
+                var rootWindow = GetAncestor(targetWindow, GA_ROOT);
+                SetForegroundWindow(rootWindow != IntPtr.Zero ? rootWindow : targetWindow);
+                
+                // Verify focus switch before sending input
+                await Task.Delay(200, cancellationToken);
+            }
+
+            await SendCtrlShortcutAsync(Keys.V, cancellationToken);
+        }
 
         // Give the target application some time to process the paste command
         // before we restore the original clipboard content.
@@ -154,6 +165,38 @@ public sealed class ClipboardService : IClipboardService
         {
             ScheduleClipboardUpdateRelease();
         }
+    }
+
+    private bool TryPasteViaMessage(IntPtr hWnd)
+    {
+        try
+        {
+            var className = GetWindowClassName(hWnd);
+            if (string.IsNullOrEmpty(className))
+                return false;
+
+            // Check for standard edit controls and RichEdit controls
+            if (className.Equals("Edit", StringComparison.OrdinalIgnoreCase) ||
+                className.StartsWith("RICHEDIT", StringComparison.OrdinalIgnoreCase) ||
+                className.Contains("RichEdit", StringComparison.OrdinalIgnoreCase))
+            {
+                SendMessage(hWnd, WM_PASTE, 0, 0);
+                return true;
+            }
+        }
+        catch
+        {
+            // Fallback to keyboard simulation
+        }
+        return false;
+    }
+
+    private static string GetWindowClassName(IntPtr hwnd)
+    {
+        var builder = new System.Text.StringBuilder(256);
+        return GetClassName(hwnd, builder, builder.Capacity) == 0
+            ? string.Empty
+            : builder.ToString();
     }
 
     private void CopyToClipboardInternal(string text)
@@ -286,9 +329,16 @@ public sealed class ClipboardService : IClipboardService
     private static extern IntPtr GetAncestor(IntPtr hwnd, uint flags);
 
     private const uint GA_ROOT = 2;
+    private const int WM_PASTE = 0x0302;
 
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    private static extern IntPtr SendMessage(IntPtr hWnd, int Msg, int wParam, int lParam);
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+    private static extern int GetClassName(IntPtr hWnd, System.Text.StringBuilder lpClassName, int nMaxCount);
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
