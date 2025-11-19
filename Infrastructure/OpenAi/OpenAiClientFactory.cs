@@ -29,7 +29,7 @@ public sealed class OpenAiClientFactory : IOpenAiClientFactory
             string? apiKey = _apiKeyProvider();
             if (string.IsNullOrWhiteSpace(apiKey))
             {
-                throw new InvalidOperationException("Set an OpenAI API key in the environment or application settings.");
+                throw new InvalidOperationException("Ange en OpenAI-API-nyckel i miljön eller i appens inställningar.");
             }
 
             _client = new OpenAiChatClient(apiKey);

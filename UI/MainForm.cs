@@ -20,16 +20,16 @@ public sealed class MainForm : Form
         FormBorderStyle = FormBorderStyle.FixedToolWindow;
 
         _menu = new ContextMenuStrip();
-        _autoShowItem = new ToolStripMenuItem("Auto-Show on Selection");
+        _autoShowItem = new ToolStripMenuItem("Visa automatiskt vid markering");
         _autoShowItem.CheckOnClick = true;
         _autoShowItem.Click += (_, __) => AutoShowOnSelectionChanged?.Invoke(this, EventArgs.Empty);
         _menu.Items.Add(_autoShowItem);
         _menu.Items.Add(new ToolStripSeparator());
 
-        _menu.Items.Add("Open Editor…", null, (_, __) => EditorRequested?.Invoke(this, EventArgs.Empty));
-        _menu.Items.Add("Settings…", null, (_, __) => SettingsRequested?.Invoke(this, EventArgs.Empty));
+        _menu.Items.Add("Öppna redigeraren…", null, (_, __) => EditorRequested?.Invoke(this, EventArgs.Empty));
+        _menu.Items.Add("Inställningar…", null, (_, __) => SettingsRequested?.Invoke(this, EventArgs.Empty));
         _menu.Items.Add(new ToolStripSeparator());
-        _menu.Items.Add("Exit", null, (_, __) => ExitRequested?.Invoke(this, EventArgs.Empty));
+        _menu.Items.Add("Avsluta", null, (_, __) => ExitRequested?.Invoke(this, EventArgs.Empty));
 
         _trayIcon = new NotifyIcon
         {

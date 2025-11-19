@@ -27,7 +27,7 @@ public sealed class EditorForm : Form
         _actions = actions?.ToList() ?? throw new ArgumentNullException(nameof(actions));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-        Text = "Writing Helper Editor";
+        Text = "Writing Helper-redigeraren";
         StartPosition = FormStartPosition.CenterScreen;
         MinimumSize = new Size(520, 420);
         Padding = new Padding(16, 18, 16, 16);
@@ -51,7 +51,7 @@ public sealed class EditorForm : Form
         {
             AutoSize = true,
             MaximumSize = new Size(520, 0),
-            Text = "Enter or paste the text you want to edit, then choose an action below.",
+            Text = "Skriv eller klistra in texten du vill redigera och välj sedan en åtgärd nedan.",
             Font = new Font("Segoe UI", 9F),
         };
 
@@ -83,7 +83,7 @@ public sealed class EditorForm : Form
         _loadingLabel = new Label
         {
             AutoSize = true,
-            Text = "Running action…",
+            Text = "Kör åtgärd…",
             Font = new Font("Segoe UI", 9F, FontStyle.Italic),
             ForeColor = Color.FromArgb(90, 90, 90),
             Margin = new Padding(0, 2, 0, 0)
@@ -112,7 +112,7 @@ public sealed class EditorForm : Form
 
         var closeButton = new Button
         {
-            Text = "Close",
+            Text = "Stäng",
             AutoSize = true,
             DialogResult = DialogResult.Cancel
         };
@@ -203,36 +203,36 @@ public sealed class EditorForm : Form
         var text = _inputTextBox.Text;
         if (string.IsNullOrWhiteSpace(text))
         {
-            UpdateMessage("Enter or paste text before selecting an action.");
+            UpdateMessage("Skriv eller klistra in text innan du väljer en åtgärd.");
             return;
         }
 
-        SetBusyState(true, $"Running {action.DisplayName}…");
+        SetBusyState(true, $"Kör {action.DisplayName}…");
 
         try
         {
             var result = await action.ExecuteAsync(text, optionId, CancellationToken.None);
             if (!result.Success)
             {
-                UpdateMessage(result.Message ?? "Action failed.");
+                UpdateMessage(result.Message ?? "Åtgärden misslyckades.");
                 return;
             }
 
             if (string.IsNullOrWhiteSpace(result.ReplacementText))
             {
-                UpdateMessage(result.Message ?? "The selected action did not return any text.");
+                UpdateMessage(result.Message ?? "Den valda åtgärden gav ingen text.");
                 return;
             }
 
             _inputTextBox.Text = result.ReplacementText;
             _inputTextBox.SelectionStart = 0;
             _inputTextBox.SelectionLength = _inputTextBox.TextLength;
-            UpdateMessage(result.SuccessMessage ?? $"{action.DisplayName} applied. Review the updated text.");
+            UpdateMessage(result.SuccessMessage ?? $"{action.DisplayName} har körts. Granska den uppdaterade texten.");
         }
         catch (Exception ex)
         {
             _logger.LogError($"Action '{actionId}' failed", ex);
-            UpdateMessage("Unable to complete the selected action.");
+            UpdateMessage("Det gick inte att slutföra den valda åtgärden.");
         }
         finally
         {

@@ -21,7 +21,7 @@ public sealed class SimplifySelectionAction : ITextAction
     }
 
     public string Id => "simplify";
-    public string DisplayName => "Simplify & Replace";
+    public string DisplayName => "Förenkla och ersätt";
     public bool IsPrimaryAction => true;
     public IReadOnlyList<TextActionOption> Options { get; } = Array.Empty<TextActionOption>();
 
@@ -33,15 +33,15 @@ public sealed class SimplifySelectionAction : ITextAction
             string simplified = await _promptBuilder.SimplifySelectionAsync(client, selectedText);
             if (string.IsNullOrWhiteSpace(simplified))
             {
-                return TextActionResult.Failure("The assistant returned an empty response.");
+                return TextActionResult.Failure("Assistenten returnerade inget svar.");
             }
 
-            return TextActionResult.Replacement(simplified, "Use Simplified Text", "Simplified text inserted.");
+            return TextActionResult.Replacement(simplified, "Använd förenklad text", "Förenklad text infogad.");
         }
         catch (System.Exception ex)
         {
             _logger.LogError("SimplifySelectionAction failed", ex);
-            return TextActionResult.Failure("Unable to simplify the selected text.");
+            return TextActionResult.Failure("Det gick inte att förenkla den markerade texten.");
         }
     }
 }

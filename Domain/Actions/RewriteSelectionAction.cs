@@ -13,11 +13,11 @@ public sealed class RewriteSelectionAction : ITextAction
     private static readonly IReadOnlyList<TextActionOption> _options = new List<TextActionOption>
     {
         new("minimal", "Minimal"),
-        new("spelling", "Fix Spelling"),
-        new("shorter", "Shorter"),
-        new("longer", "Longer"),
-        new("formal", "Formal"),
-        new("casual", "Casual")
+        new("spelling", "Korrigera stavning"),
+        new("shorter", "Kortare"),
+        new("longer", "Längre"),
+        new("formal", "Formell"),
+        new("casual", "Vardaglig")
     };
 
     private readonly TextSelectionPromptBuilder _promptBuilder;
@@ -32,7 +32,7 @@ public sealed class RewriteSelectionAction : ITextAction
     }
 
     public string Id => "rewrite";
-    public string DisplayName => "Rewrite…";
+    public string DisplayName => "Skriv om…";
     public bool IsPrimaryAction => false;
     public IReadOnlyList<TextActionOption> Options => _options;
 
@@ -45,19 +45,19 @@ public sealed class RewriteSelectionAction : ITextAction
             string rewritten = await _promptBuilder.RewriteSelectionAsync(client, selectedText, style);
             if (string.IsNullOrWhiteSpace(rewritten))
             {
-                return TextActionResult.Failure("The assistant returned an empty response.");
+                return TextActionResult.Failure("Assistenten returnerade inget svar.");
             }
 
             string displayStyle = TryGetDisplayName(style);
             return TextActionResult.Replacement(
                 rewritten,
-                "Use Rewritten Text",
-                $"Rewritten text inserted ({displayStyle}).");
+                "Använd omskriven text",
+                $"Omskriven text infogad ({displayStyle}).");
         }
         catch (System.Exception ex)
         {
             _logger.LogError("RewriteSelectionAction failed", ex);
-            return TextActionResult.Failure("Unable to rewrite the selected text.");
+            return TextActionResult.Failure("Det gick inte att skriva om den markerade texten.");
         }
     }
 

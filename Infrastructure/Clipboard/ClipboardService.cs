@@ -94,7 +94,7 @@ public sealed class ClipboardService : IClipboardService
     {
         if (string.IsNullOrWhiteSpace(replacementText))
         {
-            throw new InvalidOperationException("Replacement text cannot be empty.");
+            throw new InvalidOperationException("Ersättningstexten får inte vara tom.");
         }
 
         // 1. Prepare Clipboard
@@ -114,7 +114,7 @@ public sealed class ClipboardService : IClipboardService
         }
         catch (Exception ex)
         {
-            throw new InvalidOperationException("Unable to set clipboard text: " + ex.Message);
+            throw new InvalidOperationException("Det gick inte att skriva till urklippet: " + ex.Message);
         }
 
         // 2. Try Direct Message Paste (Most Reliable)
@@ -240,7 +240,7 @@ public sealed class ClipboardService : IClipboardService
     {
         if (string.IsNullOrWhiteSpace(text))
         {
-            throw new InvalidOperationException("Clipboard text cannot be empty.");
+            throw new InvalidOperationException("Urklippstexten får inte vara tom.");
         }
 
         BeginClipboardUpdate();
@@ -250,7 +250,7 @@ public sealed class ClipboardService : IClipboardService
         }
         catch (Exception ex)
         {
-            throw new InvalidOperationException("Unable to set clipboard text: " + ex.Message);
+            throw new InvalidOperationException("Det gick inte att skriva till urklippet: " + ex.Message);
         }
         finally
         {
