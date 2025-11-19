@@ -112,6 +112,8 @@ public sealed class ClipboardService : IClipboardService
         try
         {
             System.Windows.Forms.Clipboard.SetText(replacementText);
+            // Allow time for the clipboard to update
+            await Task.Delay(50, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -122,14 +124,14 @@ public sealed class ClipboardService : IClipboardService
         {
             SetForegroundWindow(targetWindow);
             // Verify focus switch before sending input
-            await Task.Delay(100, cancellationToken);
+            await Task.Delay(200, cancellationToken);
         }
 
-        SendCtrlShortcut(Keys.V);
+        await SendCtrlShortcutAsync(Keys.V, cancellationToken);
 
         // Give the target application some time to process the paste command
         // before we restore the original clipboard content.
-        await Task.Delay(250, cancellationToken);
+        await Task.Delay(500, cancellationToken);
 
         try
         {
@@ -236,6 +238,29 @@ public sealed class ClipboardService : IClipboardService
         inputs[3] = CreateKeyInput(Keys.ControlKey, true);
 
         SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
+    }
+
+    private static async Task SendCtrlShortcutAsync(Keys key, CancellationToken cancellationToken)
+    {
+        // Ctrl Down
+        var ctrlDown = new INPUT[] { CreateKeyInput(Keys.ControlKey, false) };
+        SendInput(1, ctrlDown, Marshal.SizeOf<INPUT>());
+        await Task.Delay(50, cancellationToken);
+
+        // Key Down
+        var keyDown = new INPUT[] { CreateKeyInput(key, false) };
+        SendInput(1, keyDown, Marshal.SizeOf<INPUT>());
+        await Task.Delay(50, cancellationToken);
+
+        // Key Up
+        var keyUp = new INPUT[] { CreateKeyInput(key, true) };
+        SendInput(1, keyUp, Marshal.SizeOf<INPUT>());
+        await Task.Delay(50, cancellationToken);
+
+        // Ctrl Up
+        var ctrlUp = new INPUT[] { CreateKeyInput(Keys.ControlKey, true) };
+        SendInput(1, ctrlUp, Marshal.SizeOf<INPUT>());
+        await Task.Delay(50, cancellationToken);
     }
 
     private static INPUT CreateKeyInput(Keys key, bool keyUp)
