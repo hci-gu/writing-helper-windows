@@ -3,6 +3,7 @@ using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Automation;
 using System.Windows.Forms;
 
 namespace GlobalTextHelper
@@ -231,6 +232,14 @@ namespace GlobalTextHelper
             if (_isReadingSelection)
                 return null;
 
+            // 1. Try UI Automation first (no clipboard)
+            string? uiaText = TryReadSelectedTextViaUIA(sourceWindow);
+            if (!string.IsNullOrWhiteSpace(uiaText))
+            {
+                return uiaText;
+            }
+
+            // 2. Fallback to Clipboard method
             var clipboardSnapshot = TryGetClipboardSnapshot();
             if (clipboardSnapshot is null)
                 return null;
@@ -263,6 +272,42 @@ namespace GlobalTextHelper
             {
                 RestoreClipboardSnapshot(clipboardSnapshot);
                 _isReadingSelection = false;
+            }
+
+            return null;
+        }
+
+        private string? TryReadSelectedTextViaUIA(IntPtr hwnd)
+        {
+            if (hwnd == IntPtr.Zero)
+                return null;
+
+            try
+            {
+                var element = AutomationElement.FromHandle(hwnd);
+                if (element == null)
+                    return null;
+
+                // Try to get the TextPattern (common in editors, browsers)
+                if (element.TryGetCurrentPattern(TextPattern.Pattern, out object patternObj))
+                {
+                    var textPattern = (TextPattern)patternObj;
+                    var ranges = textPattern.GetSelection();
+                    if (ranges != null && ranges.Length > 0)
+                    {
+                        // Join multiple selection ranges if present
+                        return string.Join(Environment.NewLine, ranges.Select(r => r.GetText(-1).Trim()));
+                    }
+                }
+                
+                // Some controls might support ValuePattern (e.g. simple text boxes) but usually 
+                // that returns the *entire* text, not just selection. 
+                // We only want *selected* text, so we stick to TextPattern.
+            }
+            catch (Exception ex)
+            {
+                // UIA can fail for many reasons (permissions, non-responsive window, etc.)
+                System.Diagnostics.Debug.WriteLine("UIA error: " + ex.Message);
             }
 
             return null;
