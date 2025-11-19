@@ -17,9 +17,11 @@ public sealed class SettingsForm : Form
         MaximizeBox = false;
         MinimizeBox = false;
         StartPosition = FormStartPosition.CenterParent;
-        AutoSize = true;
+        AutoSize = true,
         AutoSizeMode = AutoSizeMode.GrowAndShrink;
-        Padding = new Padding(16, 18, 16, 16);
+        Padding = new Padding(Theme.PaddingMedium);
+        BackColor = Theme.BackgroundColor;
+        Font = Theme.BodyFont;
 
         var layout = new TableLayoutPanel
         {
@@ -45,26 +47,37 @@ public sealed class SettingsForm : Form
             AutoSize = true,
             MaximumSize = new Size(380, 0),
             Text = "Provide your OpenAI API key to enable the assistant. If the OPENAI_API_KEY environment variable is set, it will be used instead.",
+            Font = Theme.BodyFont,
+            ForeColor = Theme.TextColor,
+            Margin = new Padding(0, 0, 0, Theme.PaddingMedium)
         };
 
         var apiKeyLabel = new Label
         {
             AutoSize = true,
             Text = "OpenAI API Key",
-            Margin = new Padding(0, 12, 0, 2),
+            Margin = new Padding(0, 0, 0, 4),
+            Font = Theme.ButtonFont, // Semibold
+            ForeColor = Theme.TextColor
         };
 
         _apiKeyTextBox = new TextBox
         {
             Width = 360,
             UseSystemPasswordChar = true,
+            Font = Theme.BodyFont,
+            ForeColor = Theme.TextColor,
+            BackColor = Theme.SurfaceColor,
+            BorderStyle = BorderStyle.FixedSingle
         };
 
         var promptPreambleLabel = new Label
         {
             AutoSize = true,
             Text = "About you (optional)",
-            Margin = new Padding(0, 12, 0, 2),
+            Margin = new Padding(0, Theme.PaddingMedium, 0, 4),
+            Font = Theme.ButtonFont,
+            ForeColor = Theme.TextColor
         };
 
         _promptPreambleTextBox = new TextBox
@@ -74,21 +87,28 @@ public sealed class SettingsForm : Form
             Multiline = true,
             ScrollBars = ScrollBars.Vertical,
             AcceptsReturn = true,
+            Font = Theme.BodyFont,
+            ForeColor = Theme.TextColor,
+            BackColor = Theme.SurfaceColor,
+            BorderStyle = BorderStyle.FixedSingle
         };
 
         var promptInstructions = new Label
         {
             AutoSize = true,
             MaximumSize = new Size(380, 0),
-            ForeColor = Color.FromArgb(90, 90, 90),
+            ForeColor = Theme.TextMutedColor,
+            Font = Theme.SmallFont,
             Text = "Anything you write here will be added to the beginning of prompts so the assistant knows more about you.",
+            Margin = new Padding(0, 4, 0, 0)
         };
 
         _statusLabel = new Label
         {
             AutoSize = true,
-            ForeColor = Color.FromArgb(180, 0, 0),
+            ForeColor = Theme.ErrorColor,
             Margin = new Padding(0, 6, 0, 0),
+            Font = Theme.SmallFont
         };
 
         var buttonPanel = new FlowLayoutPanel
@@ -100,19 +120,12 @@ public sealed class SettingsForm : Form
             Margin = new Padding(0, 14, 0, 0),
         };
 
-        var saveButton = new Button
-        {
-            Text = "Save",
-            AutoSize = true,
-            DialogResult = DialogResult.OK,
-        };
+        var saveButton = ActionButtonFactory.CreatePrimaryActionButton("Save");
+        saveButton.DialogResult = DialogResult.OK;
 
-        var cancelButton = new Button
-        {
-            Text = "Cancel",
-            AutoSize = true,
-            DialogResult = DialogResult.Cancel,
-        };
+        var cancelButton = ActionButtonFactory.CreateSecondaryActionButton("Cancel");
+        cancelButton.DialogResult = DialogResult.Cancel;
+        cancelButton.Margin = new Padding(0, 0, 8, 0);
 
         saveButton.Click += OnSaveClicked;
 

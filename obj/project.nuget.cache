@@ -1,8 +1,13 @@
 {
   "version": 2,
-  "dgSpecHash": "P36Au24y8J4zr8jPtJcTovUlef0IJ0xFSg8hZZatbqTlPp5LaFAyM5gN3JJ1KUmCO5FDcPI8o7wr62qM61kmIw==",
+  "dgSpecHash": "WG3zxh2KYm0=",
   "success": true,
-  "projectFilePath": "C:\\Users\\xandse\\aphasia-project\\aphasia-project.csproj",
-  "expectedPackageFiles": [],
+  "projectFilePath": "/Users/sebastianandreasson/Documents/code/work/gu/writing-helper-windows/aphasia-project.csproj",
+  "expectedPackageFiles": [
+    "/Users/sebastianandreasson/.nuget/packages/microsoft.netcore.app.ref/8.0.21/microsoft.netcore.app.ref.8.0.21.nupkg.sha512",
+    "/Users/sebastianandreasson/.nuget/packages/microsoft.windowsdesktop.app.ref/8.0.21/microsoft.windowsdesktop.app.ref.8.0.21.nupkg.sha512",
+    "/Users/sebastianandreasson/.nuget/packages/microsoft.aspnetcore.app.ref/8.0.21/microsoft.aspnetcore.app.ref.8.0.21.nupkg.sha512",
+    "/Users/sebastianandreasson/.nuget/packages/microsoft.netcore.app.host.osx-arm64/8.0.21/microsoft.netcore.app.host.osx-arm64.8.0.21.nupkg.sha512"
+  ],
   "logs": []
 }

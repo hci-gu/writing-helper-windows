@@ -8,36 +8,36 @@ internal static class ActionButtonFactory
     public static Button CreatePrimaryActionButton(string text)
     {
         var button = CreateBaseActionButton(text);
-        button.BackColor = Color.FromArgb(46, 90, 165);
-        button.ForeColor = Color.White;
-        button.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+        button.BackColor = Theme.PrimaryColor;
+        button.ForeColor = Theme.PrimaryTextColor;
+        button.Font = Theme.ButtonFont;
         button.FlatAppearance.BorderSize = 0;
-        button.FlatAppearance.MouseOverBackColor = Color.FromArgb(61, 113, 203);
-        button.FlatAppearance.MouseDownBackColor = Color.FromArgb(39, 78, 143);
+        button.FlatAppearance.MouseOverBackColor = Theme.PrimaryHoverColor;
+        button.FlatAppearance.MouseDownBackColor = Theme.PrimaryPressedColor;
         return button;
     }
 
     public static Button CreateSecondaryActionButton(string text)
     {
         var button = CreateBaseActionButton(text);
-        button.BackColor = Color.FromArgb(237, 240, 247);
-        button.ForeColor = Color.FromArgb(46, 90, 165);
-        button.FlatAppearance.BorderColor = Color.FromArgb(209, 216, 232);
-        button.FlatAppearance.MouseOverBackColor = Color.FromArgb(227, 233, 246);
-        button.FlatAppearance.MouseDownBackColor = Color.FromArgb(215, 224, 243);
+        button.BackColor = Theme.SecondaryColor;
+        button.ForeColor = Theme.SecondaryTextColor;
+        button.FlatAppearance.BorderSize = 0;
+        button.FlatAppearance.MouseOverBackColor = Theme.SecondaryHoverColor;
+        button.FlatAppearance.MouseDownBackColor = Theme.SecondaryPressedColor;
         return button;
     }
 
     public static Button CreateBackNavigationButton(string text)
     {
         var button = CreateBaseActionButton(text);
-        button.Padding = new Padding(10, 6, 10, 6);
-        button.Font = new Font("Segoe UI", 8.5f, FontStyle.Regular);
-        button.BackColor = Color.White;
-        button.ForeColor = Color.FromArgb(70, 80, 95);
-        button.FlatAppearance.BorderColor = Color.FromArgb(209, 216, 232);
-        button.FlatAppearance.MouseOverBackColor = Color.FromArgb(240, 244, 252);
-        button.FlatAppearance.MouseDownBackColor = Color.FromArgb(227, 233, 247);
+        button.Padding = new Padding(Theme.PaddingSmall, 6, Theme.PaddingSmall, 6);
+        button.Font = Theme.SmallFont;
+        button.BackColor = Color.Transparent;
+        button.ForeColor = Theme.TextMutedColor;
+        button.FlatAppearance.BorderSize = 0;
+        button.FlatAppearance.MouseOverBackColor = Theme.SecondaryHoverColor;
+        button.FlatAppearance.MouseDownBackColor = Theme.SecondaryPressedColor;
         return button;
     }
 
@@ -48,15 +48,16 @@ internal static class ActionButtonFactory
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             Margin = new Padding(0),
-            Padding = new Padding(14, 7, 14, 7),
+            Padding = new Padding(Theme.PaddingMedium, 10, Theme.PaddingMedium, 10),
             FlatStyle = FlatStyle.Flat,
             Cursor = Cursors.Hand,
             UseVisualStyleBackColor = false,
             Text = text,
-            TabStop = false
+            TabStop = false,
+            Font = Theme.ButtonFont
         };
 
-        button.FlatAppearance.BorderSize = 1;
+        button.FlatAppearance.BorderSize = 0;
         return button;
     }
 }

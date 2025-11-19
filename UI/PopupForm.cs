@@ -39,9 +39,9 @@ public sealed class PopupForm : Form
         StartPosition = FormStartPosition.Manual;
         TopMost = true;
         ShowInTaskbar = false;
-        BackColor = Color.FromArgb(243, 245, 250);
+        BackColor = Theme.SurfaceColor;
         Opacity = 0.98;
-        Padding = new Padding(16, 16, 16, 18);
+        Padding = new Padding(Theme.PaddingSmall);
 
         var layout = new TableLayoutPanel
         {
@@ -50,8 +50,8 @@ public sealed class PopupForm : Form
             Dock = DockStyle.Fill,
             ColumnCount = 1,
             RowCount = 3,
-            BackColor = Color.White,
-            Padding = new Padding(20, 18, 20, 20),
+            BackColor = Theme.BackgroundColor,
+            Padding = new Padding(Theme.PaddingLarge),
         };
 
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
@@ -89,9 +89,9 @@ public sealed class PopupForm : Form
         {
             AutoSize = true,
             Text = "Writing Helper",
-            Font = new Font("Segoe UI", 10.5f, FontStyle.Bold),
-            ForeColor = Color.FromArgb(46, 90, 165),
-            Margin = new Padding(0, 0, 0, 2)
+            Font = Theme.HeaderFont,
+            ForeColor = Theme.PrimaryColor,
+            Margin = new Padding(0, 0, 0, 4)
         };
 
         _defaultMessage = string.IsNullOrWhiteSpace(message)
@@ -103,8 +103,8 @@ public sealed class PopupForm : Form
             AutoSize = true,
             MaximumSize = new Size(480, 0),
             Text = _defaultMessage,
-            Font = new Font("Segoe UI", 9F),
-            ForeColor = Color.FromArgb(60, 60, 60),
+            Font = Theme.BodyFont,
+            ForeColor = Theme.TextColor,
             Margin = new Padding(0)
         };
 
@@ -120,8 +120,8 @@ public sealed class PopupForm : Form
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             FlatStyle = FlatStyle.Flat,
             BackColor = Color.Transparent,
-            ForeColor = Color.FromArgb(120, 120, 120),
-            Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+            ForeColor = Theme.TextMutedColor,
+            Font = Theme.BodyFont,
             Margin = new Padding(12, 0, 0, 0),
             Padding = new Padding(6, 2, 6, 2),
             Cursor = Cursors.Hand,
@@ -130,7 +130,7 @@ public sealed class PopupForm : Form
         };
 
         _closeButton.FlatAppearance.BorderSize = 0;
-        _closeButton.FlatAppearance.MouseOverBackColor = Color.FromArgb(232, 237, 250);
+        _closeButton.FlatAppearance.MouseOverBackColor = Theme.SecondaryHoverColor;
         _closeButton.Click += (s, e) =>
         {
             StopAutoClose();
@@ -161,10 +161,10 @@ public sealed class PopupForm : Form
         {
             Multiline = true,
             ScrollBars = ScrollBars.Vertical,
-            Font = new Font("Segoe UI", 9F),
-            ForeColor = Color.FromArgb(50, 50, 50),
-            BackColor = Color.FromArgb(250, 251, 255),
-            BorderStyle = BorderStyle.FixedSingle,
+            Font = Theme.BodyFont,
+            ForeColor = Theme.TextColor,
+            BackColor = Theme.SurfaceColor,
+            BorderStyle = BorderStyle.None,
             MinimumSize = new Size(480, 80),
             MaximumSize = new Size(480, 160),
             Size = new Size(480, 100),
@@ -254,8 +254,8 @@ public sealed class PopupForm : Form
             AutoSize = true,
             MaximumSize = new Size(480, 0),
             Text = "Choose how you'd like to respond.",
-            Font = new Font("Segoe UI", 9F),
-            ForeColor = Color.FromArgb(60, 60, 60),
+            Font = Theme.BodyFont,
+            ForeColor = Theme.TextColor,
             Margin = new Padding(0, 0, 0, 8)
         };
 
@@ -329,7 +329,7 @@ public sealed class PopupForm : Form
             AutoSize = true,
             Text = "Waiting for a response…",
             Font = new Font("Segoe UI", 9F, FontStyle.Italic),
-            ForeColor = Color.FromArgb(90, 90, 90),
+            ForeColor = Theme.TextMutedColor,
             Margin = new Padding(0, 2, 0, 0)
         };
 
@@ -341,7 +341,7 @@ public sealed class PopupForm : Form
 
         Paint += (s, e) =>
         {
-            using var backgroundPen = new Pen(Color.FromArgb(216, 224, 244));
+            using var backgroundPen = new Pen(Theme.BorderColor);
             e.Graphics.DrawRectangle(backgroundPen, 0, 0, Width - 1, Height - 1);
         };
 
@@ -600,11 +600,11 @@ public sealed class PopupForm : Form
         return tone switch
         {
             ResponseTone.Affirmative =>
-                (Color.FromArgb(34, 132, 88), Color.FromArgb(41, 150, 100), Color.FromArgb(29, 110, 74), Color.White),
+                (Color.FromArgb(34, 197, 94), Color.FromArgb(22, 163, 74), Color.FromArgb(21, 128, 61), Color.White), // Green 500/600/700
             ResponseTone.Negative =>
-                (Color.FromArgb(201, 66, 66), Color.FromArgb(214, 86, 86), Color.FromArgb(170, 52, 52), Color.White),
+                (Color.FromArgb(239, 68, 68), Color.FromArgb(220, 38, 38), Color.FromArgb(185, 28, 28), Color.White), // Red 500/600/700
             _ =>
-                (Color.FromArgb(236, 238, 244), Color.FromArgb(226, 229, 238), Color.FromArgb(214, 218, 230), Color.FromArgb(55, 60, 75))
+                (Theme.SecondaryColor, Theme.SecondaryHoverColor, Theme.SecondaryPressedColor, Theme.SecondaryTextColor)
         };
     }
 

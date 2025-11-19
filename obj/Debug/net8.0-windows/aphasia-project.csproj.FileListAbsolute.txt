@@ -1,0 +1,5 @@
+/Users/sebastianandreasson/Documents/code/work/gu/writing-helper-windows/obj/Debug/net8.0-windows/aphasia-project.GeneratedMSBuildEditorConfig.editorconfig
+/Users/sebastianandreasson/Documents/code/work/gu/writing-helper-windows/obj/Debug/net8.0-windows/aphasia-project.AssemblyInfoInputs.cache
+/Users/sebastianandreasson/Documents/code/work/gu/writing-helper-windows/obj/Debug/net8.0-windows/aphasia-project.AssemblyInfo.cs
+/Users/sebastianandreasson/Documents/code/work/gu/writing-helper-windows/obj/Debug/net8.0-windows/aphasia-project.csproj.CoreCompileInputs.cache
+/Users/sebastianandreasson/Documents/code/work/gu/writing-helper-windows/obj/Debug/net8.0-windows/aphasia-project.sourcelink.json
