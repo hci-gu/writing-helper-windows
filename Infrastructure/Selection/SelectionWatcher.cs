@@ -186,7 +186,7 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
         {
             // UIA can be flaky, especially with some applications.
             // We log this as debug/warning rather than error to avoid noise.
-            _logger.LogWarning($"UIA selection read failed: {ex.Message}");
+            _logger.LogInformation($"UIA selection read warning: {ex.Message}");
         }
 
         return null;
