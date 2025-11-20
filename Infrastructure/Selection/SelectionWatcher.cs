@@ -2,6 +2,8 @@ using System;
 using System.ComponentModel;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Runtime.ExceptionServices;
+using System.Security;
 using System.Text;
 using System.Threading;
 using System.Windows.Automation;
@@ -171,6 +173,8 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
         }
     }
 
+    [HandleProcessCorruptedStateExceptions]
+    [SecurityCritical]
     private string? TryReadSelectedTextViaUIA(IntPtr hwnd)
     {
         if (hwnd == IntPtr.Zero)
@@ -188,9 +192,38 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
                 var ranges = textPattern.GetSelection();
                 if (ranges != null && ranges.Length > 0)
                 {
-                    return string.Join(Environment.NewLine, ranges.Select(r => r.GetText(-1).Trim()));
+                    var sb = new StringBuilder();
+                    foreach (var range in ranges)
+                    {
+                        try
+                        {
+                            string text = range.GetText(-1);
+                            if (!string.IsNullOrWhiteSpace(text))
+                            {
+                                if (sb.Length > 0)
+                                {
+                                    sb.AppendLine();
+                                }
+                                sb.Append(text.Trim());
+                            }
+                        }
+                        catch (AccessViolationException)
+                        {
+                            // Ignore memory corruption errors from UIA
+                        }
+                        catch (Exception)
+                        {
+                            // Ignore other errors from UIA
+                        }
+                    }
+
+                    return sb.Length > 0 ? sb.ToString() : null;
                 }
             }
+        }
+        catch (AccessViolationException)
+        {
+            // Ignore memory corruption errors from UIA
         }
         catch (Exception ex)
         {
