@@ -15,12 +15,14 @@ namespace GlobalTextHelper.Infrastructure.OpenAi
     /// </summary>
     public sealed class OpenAiChatClient : IDisposable
     {
-        private static readonly Uri DefaultBaseUri = new("https://api.openai.com/v1/", UriKind.Absolute);
+        private const string AzureApiVersion = "2024-02-15-preview";
+        private static readonly Uri DefaultBaseUri = new("https://gu-ai-006.openai.azure.com/", UriKind.Absolute);
         private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
         private readonly HttpClient _httpClient;
         private readonly bool _disposeClient;
         private readonly string _model;
+        private readonly string _chatCompletionsPath;
 
         public OpenAiChatClient(string apiKey, string model = "gpt-4o-mini", HttpClient? httpClient = null, Uri? baseUri = null)
         {
@@ -28,6 +30,7 @@ namespace GlobalTextHelper.Infrastructure.OpenAi
                 throw new ArgumentException("En OpenAI-API-nyckel måste anges.", nameof(apiKey));
 
             _model = string.IsNullOrWhiteSpace(model) ? "gpt-4o-mini" : model;
+            _chatCompletionsPath = BuildChatCompletionsPath(_model);
 
             if (httpClient is null)
             {
@@ -50,7 +53,9 @@ namespace GlobalTextHelper.Infrastructure.OpenAi
                 _httpClient.BaseAddress = resolvedBase;
             }
 
-            _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+            _httpClient.DefaultRequestHeaders.Authorization = null;
+            _httpClient.DefaultRequestHeaders.Remove("api-key");
+            _httpClient.DefaultRequestHeaders.Add("api-key", apiKey);
 
             if (!_httpClient.DefaultRequestHeaders.UserAgent.Any())
             {
@@ -88,12 +93,11 @@ namespace GlobalTextHelper.Infrastructure.OpenAi
                 throw new ArgumentException("Prompten får inte vara tom.", nameof(prompt));
 
             var request = new ChatCompletionRequest(
-                Model: _model,
                 Messages: new[] { new ChatMessage("user", prompt) },
                 Temperature: temperature,
                 MaxTokens: maxOutputTokens);
 
-            using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "chat/completions")
+            using var httpRequest = new HttpRequestMessage(HttpMethod.Post, _chatCompletionsPath)
             {
                 Content = new StringContent(JsonSerializer.Serialize(request, JsonOptions), Encoding.UTF8, "application/json")
             };
@@ -142,8 +146,13 @@ namespace GlobalTextHelper.Infrastructure.OpenAi
             }
         }
 
+        private static string BuildChatCompletionsPath(string deploymentName)
+        {
+            string safeDeploymentName = Uri.EscapeDataString(deploymentName);
+            return $"openai/deployments/{safeDeploymentName}/chat/completions?api-version={AzureApiVersion}";
+        }
+
         private sealed record ChatCompletionRequest(
-            [property: JsonPropertyName("model")] string Model,
             [property: JsonPropertyName("messages")] ChatMessage[] Messages,
             [property: JsonPropertyName("temperature")] double Temperature,
             [property: JsonPropertyName("max_tokens")] int? MaxTokens);
