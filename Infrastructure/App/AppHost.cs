@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Windows.Forms;
 using GlobalTextHelper.Domain.Actions;
 using GlobalTextHelper.Domain.Prompting;
@@ -26,6 +27,7 @@ internal sealed class AppHost : ApplicationContext
     private readonly IClipboardService _clipboardService;
     private readonly IReadOnlyList<ITextAction> _actions;
     private bool _isEditorOpen;
+    private bool _isHandlingHotkey;
 
     public AppHost()
     {
@@ -42,6 +44,7 @@ internal sealed class AppHost : ApplicationContext
         _mainForm.SettingsRequested += OnSettingsRequested;
         _mainForm.EditorRequested += OnEditorRequested;
         _mainForm.AutoShowOnSelectionChanged += OnAutoShowOnSelectionChanged;
+        _mainForm.GlobalHotkeyPressed += OnGlobalHotkeyPressed;
 
         var promptBuilder = new TextSelectionPromptBuilder(() => _userSettings.PromptPreamble);
         _responseSuggestionService = new ResponseSuggestionService(
@@ -83,7 +86,60 @@ internal sealed class AppHost : ApplicationContext
 
     private void OnSelectionCaptured(object? sender, SelectionCapturedEventArgs e)
     {
+        ShowPopupForSelection(e);
+    }
+
+    private async void OnGlobalHotkeyPressed(object? sender, EventArgs e)
+    {
+        if (_isEditorOpen || _isHandlingHotkey)
+        {
+            return;
+        }
+
+        _isHandlingHotkey = true;
+
+        try
+        {
+            var targetWindow = NativeMethods.GetForegroundWindow();
+            if (targetWindow == IntPtr.Zero)
+            {
+                return;
+            }
+
+            var capturedText = await _clipboardService.CaptureSelectionAsync(targetWindow, CancellationToken.None);
+            if (string.IsNullOrWhiteSpace(capturedText))
+            {
+                return;
+            }
+
+            var trimmedText = capturedText.Trim();
+            if (trimmedText.Length < _userSettings.MinSelectionLength)
+            {
+                return;
+            }
+
+            var args = new SelectionCapturedEventArgs(trimmedText, targetWindow, SelectionSource.Clipboard, DateTime.UtcNow);
+            ShowPopupForSelection(args);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError("Failed to handle global hotkey", ex);
+        }
+        finally
+        {
+            _isHandlingHotkey = false;
+        }
+    }
+
+    private void ShowPopupForSelection(SelectionCapturedEventArgs e)
+    {
         if (_isEditorOpen)
+        {
+            return;
+        }
+
+        var trimmed = e.Text.Trim();
+        if (trimmed.Length < _userSettings.MinSelectionLength)
         {
             return;
         }
@@ -106,6 +162,7 @@ internal sealed class AppHost : ApplicationContext
             _mainForm.SettingsRequested -= OnSettingsRequested;
             _mainForm.EditorRequested -= OnEditorRequested;
             _mainForm.AutoShowOnSelectionChanged -= OnAutoShowOnSelectionChanged;
+            _mainForm.GlobalHotkeyPressed -= OnGlobalHotkeyPressed;
             _mainForm.Dispose();
         }
 
