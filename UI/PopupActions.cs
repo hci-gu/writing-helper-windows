@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Generic;
 using GlobalTextHelper.Domain.Actions;
+using GlobalTextHelper.Domain.Responding;
 
 namespace GlobalTextHelper.UI;
 
@@ -31,4 +33,14 @@ public sealed class PopupActionInvokedEventArgs
     public string ActionId { get; }
     public string? OptionId { get; }
     public string SelectedText { get; }
+}
+
+public sealed class RespondSuggestionAppliedEventArgs : EventArgs
+{
+    public RespondSuggestionAppliedEventArgs(ResponseTone tone)
+    {
+        Tone = tone;
+    }
+
+    public ResponseTone Tone { get; }
 }

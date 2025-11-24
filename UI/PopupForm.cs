@@ -359,6 +359,7 @@ public sealed class PopupForm : Form
 
     public event Func<PopupActionInvokedEventArgs, Task>? ActionInvoked;
     public event Func<string, Task>? RespondRequested;
+    public event EventHandler<RespondSuggestionAppliedEventArgs>? RespondSuggestionApplied;
 
     protected override bool ShowWithoutActivation => true;
 
@@ -681,6 +682,7 @@ public sealed class PopupForm : Form
         SetSelectionText(suggestion.FullResponse);
         SetRespondStatus("Svaret har lagts in nedan. Redigera eller kopiera innan du skickar.");
         UpdateMessage("Ett utkast till svar har lagts in nedan.");
+        RespondSuggestionApplied?.Invoke(this, new RespondSuggestionAppliedEventArgs(suggestion.Tone));
     }
 
     public string GetSelectionText()
@@ -862,5 +864,3 @@ public enum ReplacementPreviewResult
     CopyToClipboard,
     Cancel
 }
-
-

@@ -56,7 +56,12 @@ internal sealed class AppHost : ApplicationContext
             new RewriteSelectionAction(promptBuilder, _openAiClientFactory, _logger, _analytics)
         };
 
-        _popupController = new PopupController(_actions, _clipboardService, _logger, _responseSuggestionService);
+        _popupController = new PopupController(
+            _actions,
+            _clipboardService,
+            _logger,
+            _responseSuggestionService,
+            _analytics);
         _popupController.PopupClosed += (_, __) => _workflow.MarkSelectionHandled();
 
         _selectionWatcher = new SelectionWatcher(_clipboardService, _logger);

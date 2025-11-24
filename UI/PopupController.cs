@@ -7,6 +7,7 @@ using System.Windows.Forms;
 using GlobalTextHelper.Domain.Actions;
 using GlobalTextHelper.Domain.Responding;
 using GlobalTextHelper.Domain.Selection;
+using GlobalTextHelper.Infrastructure.Analytics;
 using GlobalTextHelper.Infrastructure.Clipboard;
 using GlobalTextHelper.Infrastructure.Logging;
 
@@ -17,6 +18,7 @@ public sealed class PopupController : IDisposable
     private readonly IReadOnlyList<ITextAction> _actions;
     private readonly IClipboardService _clipboardService;
     private readonly ILogger _logger;
+    private readonly IAnalyticsTracker _analytics;
     private readonly ResponseSuggestionService _responseSuggestionService;
     private PopupForm? _activePopup;
     private SelectionContext? _currentContext;
@@ -26,12 +28,14 @@ public sealed class PopupController : IDisposable
         IEnumerable<ITextAction> actions,
         IClipboardService clipboardService,
         ILogger logger,
-        ResponseSuggestionService responseSuggestionService)
+        ResponseSuggestionService responseSuggestionService,
+        IAnalyticsTracker analytics)
     {
         _actions = actions.ToList();
         _clipboardService = clipboardService;
         _logger = logger;
         _responseSuggestionService = responseSuggestionService;
+        _analytics = analytics ?? throw new ArgumentNullException(nameof(analytics));
     }
 
     public event EventHandler? PopupClosed;
@@ -49,6 +53,7 @@ public sealed class PopupController : IDisposable
         var popup = new PopupForm("Välj en åtgärd för den markerade texten.", 30000, context.OriginalText);
         popup.ActionInvoked += HandleActionInvokedAsync;
         popup.RespondRequested += HandleRespondRequestedAsync;
+        popup.RespondSuggestionApplied += HandleRespondSuggestionApplied;
         popup.FormClosed += (_, __) =>
         {
             if (ReferenceEquals(_activePopup, popup))
@@ -108,6 +113,17 @@ public sealed class PopupController : IDisposable
             popup.UpdateMessage("Det går inte att läsa in svarsalternativ just nu.");
             popup.RestartAutoClose(4000);
         }
+    }
+
+    private void HandleRespondSuggestionApplied(object? sender, RespondSuggestionAppliedEventArgs args)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        string suffix = args.Tone.ToString().ToLowerInvariant();
+        _analytics.TrackFunctionUsed($"respond-{suffix}");
     }
 
     private async Task HandleActionInvokedAsync(PopupActionInvokedEventArgs args)

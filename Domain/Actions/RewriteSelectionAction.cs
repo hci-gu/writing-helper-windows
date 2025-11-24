@@ -47,9 +47,10 @@ public sealed class RewriteSelectionAction : ITextAction
     {
         try
         {
-            _analytics.TrackFunctionUsed(Id);
             var client = _clientFactory.CreateClient();
-            string style = optionId ?? _options.First().Id;
+            string style = string.IsNullOrWhiteSpace(optionId) ? _options.First().Id : optionId;
+            string analyticsName = $"{Id}-{style}";
+            _analytics.TrackFunctionUsed(analyticsName);
             string rewritten = await _promptBuilder.RewriteSelectionAsync(client, selectedText, style);
             if (string.IsNullOrWhiteSpace(rewritten))
             {
