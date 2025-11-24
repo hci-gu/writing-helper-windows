@@ -24,8 +24,12 @@ internal sealed class AppHost : ApplicationContext
     private readonly OpenAiClientFactory _openAiClientFactory;
     private readonly ILogger _logger;
     private readonly IClipboardService _clipboardService;
+    private readonly GlobalHotkeyListener _hotkeyListener;
+    private readonly HotkeySelectionService _hotkeySelectionService;
     private readonly IReadOnlyList<ITextAction> _actions;
     private bool _isEditorOpen;
+    private bool _isHandlingHotkey;
+    private bool _suppressSelectionHandling;
 
     public AppHost()
     {
@@ -34,6 +38,7 @@ internal sealed class AppHost : ApplicationContext
         _workflow = new SelectionWorkflow();
         _userSettings = UserSettings.Load();
         _openAiClientFactory = new OpenAiClientFactory(GetStoredApiKey);
+        _hotkeySelectionService = new HotkeySelectionService(_logger);
 
         _mainForm = new MainForm();
         _mainForm.AutoShowOnSelection = _userSettings.AutoShowOnSelection;
@@ -60,6 +65,9 @@ internal sealed class AppHost : ApplicationContext
         _selectionWatcher = new SelectionWatcher(_clipboardService, _logger, _mainForm, () => _userSettings.AutoShowOnSelection, () => _userSettings.MinSelectionLength);
         _selectionWatcher.SelectionCaptured += OnSelectionCaptured;
 
+        _hotkeyListener = new GlobalHotkeyListener(_logger);
+        _hotkeyListener.HotkeyPressed += OnGlobalHotkeyPressed;
+
         MainForm = _mainForm;
 
         if (!HasConfiguredApiKey())
@@ -83,6 +91,11 @@ internal sealed class AppHost : ApplicationContext
 
     private void OnSelectionCaptured(object? sender, SelectionCapturedEventArgs e)
     {
+        if (_suppressSelectionHandling)
+        {
+            return;
+        }
+
         if (_isEditorOpen)
         {
             return;
@@ -107,6 +120,8 @@ internal sealed class AppHost : ApplicationContext
             _mainForm.EditorRequested -= OnEditorRequested;
             _mainForm.AutoShowOnSelectionChanged -= OnAutoShowOnSelectionChanged;
             _mainForm.Dispose();
+            _hotkeyListener.HotkeyPressed -= OnGlobalHotkeyPressed;
+            _hotkeyListener.Dispose();
         }
 
         base.Dispose(disposing);
@@ -169,6 +184,44 @@ internal sealed class AppHost : ApplicationContext
         finally
         {
             _isEditorOpen = false;
+        }
+    }
+
+    private async void OnGlobalHotkeyPressed(object? sender, EventArgs e)
+    {
+        if (_isEditorOpen || _isHandlingHotkey)
+        {
+            return;
+        }
+
+        _isHandlingHotkey = true;
+        _suppressSelectionHandling = true;
+
+        try
+        {
+            var captureResult = await _hotkeySelectionService.CaptureSelectionAsync();
+            if (captureResult is null)
+            {
+                return;
+            }
+
+            var args = new SelectionCapturedEventArgs(
+                captureResult.Value.Text,
+                captureResult.Value.SourceWindow,
+                SelectionSource.Clipboard,
+                DateTime.UtcNow);
+
+            if (!_workflow.TryHandleSelection(args, out var context) || context is null)
+            {
+                return;
+            }
+
+            _mainForm.BeginInvoke(new Action(() => _popupController.ShowForSelection(context)));
+        }
+        finally
+        {
+            _suppressSelectionHandling = false;
+            _isHandlingHotkey = false;
         }
     }
 }
