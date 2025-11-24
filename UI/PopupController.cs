@@ -55,6 +55,7 @@ public sealed class PopupController : IDisposable
         popup.ActionInvoked += HandleActionInvokedAsync;
         popup.RespondRequested += HandleRespondRequestedAsync;
         popup.RespondSuggestionApplied += HandleRespondSuggestionApplied;
+        popup.ApplyReplacementRequested += HandleApplyReplacementRequestedAsync;
         popup.FormClosed += (_, __) =>
         {
             if (ReferenceEquals(_activePopup, popup))
@@ -203,6 +204,25 @@ public sealed class PopupController : IDisposable
             _logger.LogError($"Action '{action.Id}' failed", ex);
             popup.UpdateMessage("Det gick inte att slutföra den valda åtgärden.");
             popup.RestartAutoClose(4000);
+        }
+    }
+
+    private async Task<bool> HandleApplyReplacementRequestedAsync(TextEditContext context, string replacementText)
+    {
+        if (_disposed)
+        {
+            return false;
+        }
+
+        try
+        {
+            await _clipboardService.ReplaceSelectionAsync(context.OriginalText, replacementText, context.TargetWindow, CancellationToken.None);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError("Failed to apply replacement text", ex);
+            return false;
         }
     }
 

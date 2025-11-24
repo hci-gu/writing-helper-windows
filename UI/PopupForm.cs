@@ -24,7 +24,6 @@ public sealed class PopupForm : Form
     private readonly ProgressBar _loadingIndicator;
     private readonly Label _loadingLabel;
     private readonly Button _closeButton;
-    private readonly TextEditContext _textEditContext;
     private readonly List<ContextMenuStrip> _optionMenus = new();
     private readonly List<PopupActionDescriptor> _rewriteActionDescriptors = new();
     private readonly string _defaultMessage;
@@ -34,7 +33,7 @@ public sealed class PopupForm : Form
 
     public PopupForm(TextEditContext textEditContext, string message, int autohideMs, string selectionText)
     {
-        _textEditContext = textEditContext;
+        TextEditContext = textEditContext;
 
         AutoSize = true;
         AutoSizeMode = AutoSizeMode.GrowAndShrink;
@@ -363,6 +362,9 @@ public sealed class PopupForm : Form
     public event Func<PopupActionInvokedEventArgs, Task>? ActionInvoked;
     public event Func<string, Task>? RespondRequested;
     public event EventHandler<RespondSuggestionAppliedEventArgs>? RespondSuggestionApplied;
+    public event Func<TextEditContext, string, Task<bool>>? ApplyReplacementRequested;
+
+    private TextEditContext TextEditContext { get; }
 
     protected override bool ShowWithoutActivation => true;
 
@@ -746,7 +748,7 @@ public sealed class PopupForm : Form
         cancelButton.Click += (s, e) => CompleteConfirmation(ReplacementPreviewResult.Cancel);
 
         var approveButton = ActionButtonFactory.CreatePrimaryActionButton(approveButtonText);
-        approveButton.Click += (_, _) => ReplaceInSourceApp();
+        approveButton.Click += async (_, _) => await ApplyReplacementAsync();
 
         var copyButton = ActionButtonFactory.CreateSecondaryActionButton(copyButtonText);
         copyButton.Margin = new Padding(8, 0, 0, 0);
@@ -761,7 +763,7 @@ public sealed class PopupForm : Form
         return _confirmationCompletion.Task;
     }
 
-    private void ReplaceInSourceApp()
+    private async Task ApplyReplacementAsync()
     {
         if (IsDisposed)
         {
@@ -769,14 +771,25 @@ public sealed class PopupForm : Form
         }
 
         var textToApply = string.IsNullOrWhiteSpace(GetSelectionText())
-            ? _textEditContext.OriginalText
+            ? TextEditContext.OriginalText
             : GetSelectionText();
 
         try
         {
-            if (_textEditContext.TargetWindow != IntPtr.Zero)
+            var handler = ApplyReplacementRequested;
+            if (handler is not null)
             {
-                NativeMethods.SetForegroundWindow(_textEditContext.TargetWindow);
+                var succeeded = await handler(TextEditContext, textToApply);
+                if (succeeded)
+                {
+                    CompleteConfirmation(ReplacementPreviewResult.Accept);
+                    return;
+                }
+            }
+
+            if (TextEditContext.TargetWindow != IntPtr.Zero)
+            {
+                NativeMethods.SetForegroundWindow(TextEditContext.TargetWindow);
             }
 
             Clipboard.SetText(textToApply);
