@@ -61,12 +61,26 @@ public sealed class ClipboardService : IClipboardService
         {
             _isReadingSelection = true;
 
+            bool copySucceeded = false;
             if (sourceWindow != IntPtr.Zero)
             {
-                SetForegroundWindow(sourceWindow);
+                // Try a direct WM_COPY first (works even if we cannot steal foreground focus)
+                copySucceeded = TryCopyViaMessage(sourceWindow);
+
+                if (!copySucceeded)
+                {
+                    copySucceeded = SetForegroundWindow(sourceWindow);
+                }
+            }
+
+            if (!copySucceeded)
+            {
+                // We still attempt the keystroke; worst-case it goes nowhere.
+                SetForegroundWindow(IntPtr.Zero);
             }
 
             SendCtrlShortcut(Keys.C);
+            Thread.Sleep(50); // allow target app to populate clipboard
 
             if (System.Windows.Forms.Clipboard.ContainsText())
             {
@@ -197,6 +211,31 @@ public sealed class ClipboardService : IClipboardService
         return false;
     }
 
+    private bool TryCopyViaMessage(IntPtr mainHandle)
+    {
+        try
+        {
+            var targetControl = GetFocusedControlHandle(mainHandle);
+            if (targetControl == IntPtr.Zero)
+            {
+                targetControl = mainHandle;
+            }
+
+            var className = GetWindowClassName(targetControl);
+            if (IsCopySupportedClass(className))
+            {
+                SendMessage(targetControl, WM_COPY, 0, 0);
+                return true;
+            }
+        }
+        catch
+        {
+            // Ignore and let Ctrl+C fallback try.
+        }
+
+        return false;
+    }
+
     private IntPtr GetFocusedControlHandle(IntPtr windowHandle)
     {
         try
@@ -226,6 +265,12 @@ public sealed class ClipboardService : IClipboardService
         return className.Equals("Edit", StringComparison.OrdinalIgnoreCase) ||
                className.Contains("RichEdit", StringComparison.OrdinalIgnoreCase) ||
                className.Equals("TextBox", StringComparison.OrdinalIgnoreCase); // Some .NET apps
+    }
+
+    private static bool IsCopySupportedClass(string className)
+    {
+        // Use the same heuristic as paste support; these controls generally honor WM_COPY/WM_PASTE.
+        return IsPasteSupportedClass(className);
     }
 
     private static string GetWindowClassName(IntPtr hwnd)
@@ -366,6 +411,7 @@ public sealed class ClipboardService : IClipboardService
     private static extern IntPtr GetAncestor(IntPtr hwnd, uint flags);
 
     private const uint GA_ROOT = 2;
+    private const int WM_COPY = 0x0301;
     private const int WM_PASTE = 0x0302;
 
     [DllImport("user32.dll")]

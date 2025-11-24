@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Runtime.ExceptionServices;
@@ -22,6 +24,11 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
     private const uint WINEVENT_SKIPOWNPROCESS = 0x0002;
 
     private const int EM_GETSEL = 0x00B0;
+    private static readonly HashSet<string> UiaExcludedProcesses = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "wordpad",
+        "write"
+    };
 
     private readonly IClipboardService _clipboardService;
     private readonly ILogger _logger;
@@ -143,21 +150,42 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
         }
 
         int minSelectionLength = _getMinSelectionLength();
+        string? uiaText = null;
+        string? processName = null;
 
-        // 1. Try UI Automation first
-        string? uiaText = TryReadSelectedTextViaUIA(hwnd);
-        if (!string.IsNullOrWhiteSpace(uiaText))
+        try
         {
-             if (uiaText!.Trim().Length >= minSelectionLength)
-             {
-                 SelectionCaptured?.Invoke(
-                    this,
-                    new SelectionCapturedEventArgs(uiaText, hwnd, SelectionSource.TextSelection, DateTime.UtcNow));
-             }
-             return;
+            if (ShouldSkipUiaRead(hwnd, out processName))
+            {
+                _logger.LogInformation($"Skipping UIA selection read for '{processName}' due to unstable provider. Falling back to clipboard.");
+            }
+            else
+            {
+                uiaText = TryReadSelectedTextViaUIA(hwnd);
+                if (!string.IsNullOrWhiteSpace(uiaText))
+                {
+                    string trimmed = uiaText.Trim();
+                    if (trimmed.Length >= minSelectionLength)
+                    {
+                        SelectionCaptured?.Invoke(
+                            this,
+                            new SelectionCapturedEventArgs(trimmed, hwnd, SelectionSource.TextSelection, DateTime.UtcNow));
+                    }
+                    return;
+                }
+            }
+        }
+        catch (AccessViolationException)
+        {
+            processName ??= TryGetProcessName(hwnd) ?? "unknown";
+            _logger.LogInformation($"UIA selection read caused AccessViolation for process '{processName}'. Falling back to clipboard.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError("UIA selection read failed", ex);
         }
 
-        // 2. Fallback to Clipboard
+        // Fallback to Clipboard
         var task = _clipboardService.CaptureSelectionAsync(hwnd, CancellationToken.None);
         string? text = task.GetAwaiter().GetResult();
         if (string.IsNullOrWhiteSpace(text))
@@ -165,11 +193,12 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
             return;
         }
 
-        if (text!.Trim().Length >= minSelectionLength)
+        string trimmedText = text.Trim();
+        if (trimmedText.Length >= minSelectionLength)
         {
             SelectionCaptured?.Invoke(
                 this,
-                new SelectionCapturedEventArgs(text, hwnd, SelectionSource.TextSelection, DateTime.UtcNow));
+                new SelectionCapturedEventArgs(trimmedText, hwnd, SelectionSource.TextSelection, DateTime.UtcNow));
         }
     }
 
@@ -235,6 +264,12 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
         return null;
     }
 
+    private static bool ShouldSkipUiaRead(IntPtr hwnd, out string? processName)
+    {
+        processName = TryGetProcessName(hwnd);
+        return processName is not null && UiaExcludedProcesses.Contains(processName);
+    }
+
     private static bool HasNonEmptySelection(IntPtr hwnd)
     {
         if (hwnd == IntPtr.Zero)
@@ -276,6 +311,25 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
     private static bool IsRichEditClass(string className)
     {
         return className.StartsWith("RICHEDIT", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? TryGetProcessName(IntPtr hwnd)
+    {
+        try
+        {
+            GetWindowThreadProcessId(hwnd, out uint processId);
+            if (processId == 0)
+            {
+                return null;
+            }
+
+            using var process = Process.GetProcessById((int)processId);
+            return process.ProcessName;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     public void Dispose()
@@ -336,4 +390,7 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
 
     [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
     private static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
 }
