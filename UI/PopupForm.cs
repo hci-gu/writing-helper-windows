@@ -414,42 +414,178 @@ public sealed class PopupForm : Form
         }
 
         ClearActionButtons();
+        _buttonPanel.FlowDirection = FlowDirection.TopDown;
+        _buttonPanel.WrapContents = false;
 
         foreach (var descriptor in _rewriteActionDescriptors)
         {
-            var button = descriptor.IsPrimary
-                ? ActionButtonFactory.CreatePrimaryActionButton(descriptor.Label)
-                : ActionButtonFactory.CreateSecondaryActionButton(descriptor.Label);
-
-            if (descriptor.Options.Count > 0)
+            if (IsRewriteDescriptor(descriptor) && descriptor.Options.Count > 0)
             {
-                var menu = new ContextMenuStrip();
-                foreach (var option in descriptor.Options)
-                {
-                    var item = new ToolStripMenuItem(option.Label) { Tag = option.Id };
-                    item.Click += async (s, e) => await RaiseActionInvokedAsync(descriptor.Id, option.Id);
-                    menu.Items.Add(item);
-                }
-
-                button.Click += (s, e) => menu.Show(button, new Point(0, button.Height));
-                _optionMenus.Add(menu);
-            }
-            else
-            {
-                button.Click += async (s, e) => await RaiseActionInvokedAsync(descriptor.Id, null);
+                _buttonPanel.Controls.Add(BuildRewriteOptionLayout(descriptor));
+                continue;
             }
 
+            var button = CreateActionButton(descriptor);
             if (_buttonPanel.Controls.Count > 0)
             {
-                button.Margin = new Padding(8, 0, 0, 0);
+                button.Margin = new Padding(0, 8, 0, 0);
             }
 
             _buttonPanel.Controls.Add(button);
         }
 
         _currentView = PopupViewMode.RewriteActions;
-        UpdateMessage("Välj hur du vill skriva om den markerade texten.");
+        UpdateMessage("Skriv om din text.");
         UpdateActionAreaVisibility();
+    }
+
+    private static bool IsRewriteDescriptor(PopupActionDescriptor descriptor)
+    {
+        return string.Equals(descriptor.Id, "rewrite", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private Control BuildRewriteOptionLayout(PopupActionDescriptor descriptor)
+    {
+        var wrapper = new TableLayoutPanel
+        {
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            ColumnCount = 1,
+            RowCount = 2,
+            Margin = new Padding(0, 4, 0, 0)
+        };
+
+        wrapper.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        wrapper.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+        var title = new Label
+        {
+            AutoSize = true,
+            Text = "Skriv om din text",
+            Font = Theme.HeaderFont,
+            ForeColor = Theme.TextColor,
+            Margin = new Padding(0, 0, 0, 8)
+        };
+
+        var grid = new TableLayoutPanel
+        {
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            ColumnCount = 3,
+            RowCount = 4,
+            Margin = new Padding(0)
+        };
+
+        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.33F));
+        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.33F));
+        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.34F));
+        grid.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        grid.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        grid.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        grid.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+        grid.Controls.Add(CreateRewriteHeadingLabel("Stil"), 0, 0);
+        grid.Controls.Add(CreateRewriteHeadingLabel("Längd"), 1, 0);
+        grid.Controls.Add(CreateRewriteHeadingLabel("Stavning"), 2, 0);
+
+        AddRewriteButtonIfAvailable(grid, 0, 1, descriptor, "formal", "Formellt");
+        AddRewriteButtonIfAvailable(grid, 0, 2, descriptor, "casual", "Avslappnat");
+        AddRewriteButtonIfAvailable(grid, 1, 1, descriptor, "minimal", "Minimalt");
+        AddRewriteButtonIfAvailable(grid, 1, 2, descriptor, "shorter", "Kortare");
+        AddRewriteButtonIfAvailable(grid, 1, 3, descriptor, "longer", "Längre");
+        AddRewriteButtonIfAvailable(grid, 2, 1, descriptor, "spelling", "Fixa stavfel");
+
+        wrapper.Controls.Add(title, 0, 0);
+        wrapper.Controls.Add(grid, 0, 1);
+        return wrapper;
+    }
+
+    private static Label CreateRewriteHeadingLabel(string text)
+    {
+        return new Label
+        {
+            AutoSize = true,
+            Text = text,
+            Font = Theme.ButtonFont,
+            ForeColor = Theme.TextColor,
+            Margin = new Padding(0, 0, 0, 6)
+        };
+    }
+
+    private void AddRewriteButtonIfAvailable(
+        TableLayoutPanel grid,
+        int column,
+        int row,
+        PopupActionDescriptor descriptor,
+        string optionId,
+        string label)
+    {
+        if (!DescriptorHasOption(descriptor, optionId))
+        {
+            return;
+        }
+
+        var button = CreateRewriteOptionButton(label, optionId, descriptor.Id, column == grid.ColumnCount - 1);
+        grid.Controls.Add(button, column, row);
+    }
+
+    private static bool DescriptorHasOption(PopupActionDescriptor descriptor, string optionId)
+    {
+        return descriptor.Options.Any(o => string.Equals(o.Id, optionId, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private Button CreateRewriteOptionButton(string label, string optionId, string actionId, bool isLastColumn)
+    {
+        var button = new Button
+        {
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Padding = new Padding(12, 8, 12, 8),
+            FlatStyle = FlatStyle.Flat,
+            Cursor = Cursors.Hand,
+            UseVisualStyleBackColor = false,
+            Text = label,
+            Font = Theme.ButtonFont,
+            BackColor = Color.FromArgb(219, 234, 254), // Blue 100
+            ForeColor = Color.FromArgb(37, 99, 235),   // Blue 600
+            Margin = isLastColumn
+                ? new Padding(0, 4, 0, 4)
+                : new Padding(0, 4, 12, 4),
+            TabStop = false
+        };
+
+        button.FlatAppearance.BorderSize = 0;
+        button.FlatAppearance.MouseOverBackColor = Color.FromArgb(191, 219, 254); // Blue 200
+        button.FlatAppearance.MouseDownBackColor = Color.FromArgb(147, 197, 253); // Blue 300
+        button.Click += async (s, e) => await RaiseActionInvokedAsync(actionId, optionId);
+        return button;
+    }
+
+    private Button CreateActionButton(PopupActionDescriptor descriptor)
+    {
+        var button = descriptor.IsPrimary
+            ? ActionButtonFactory.CreatePrimaryActionButton(descriptor.Label)
+            : ActionButtonFactory.CreateSecondaryActionButton(descriptor.Label);
+
+        if (descriptor.Options.Count > 0)
+        {
+            var menu = new ContextMenuStrip();
+            foreach (var option in descriptor.Options)
+            {
+                var item = new ToolStripMenuItem(option.Label) { Tag = option.Id };
+                item.Click += async (s, e) => await RaiseActionInvokedAsync(descriptor.Id, option.Id);
+                menu.Items.Add(item);
+            }
+
+            button.Click += (s, e) => menu.Show(button, new Point(0, button.Height));
+            _optionMenus.Add(menu);
+        }
+        else
+        {
+            button.Click += async (s, e) => await RaiseActionInvokedAsync(descriptor.Id, null);
+        }
+
+        return button;
     }
 
     private void ShowRespondView()
