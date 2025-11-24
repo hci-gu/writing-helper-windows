@@ -24,6 +24,7 @@ public sealed class PopupForm : Form
     private readonly ProgressBar _loadingIndicator;
     private readonly Label _loadingLabel;
     private readonly Button _closeButton;
+    private readonly TextEditContext _textEditContext;
     private readonly List<ContextMenuStrip> _optionMenus = new();
     private readonly List<PopupActionDescriptor> _rewriteActionDescriptors = new();
     private readonly string _defaultMessage;
@@ -31,8 +32,10 @@ public sealed class PopupForm : Form
     private TaskCompletionSource<ReplacementPreviewResult>? _confirmationCompletion;
     private bool _isBusy;
 
-    public PopupForm(string message, int autohideMs, string selectionText)
+    public PopupForm(TextEditContext textEditContext, string message, int autohideMs, string selectionText)
     {
+        _textEditContext = textEditContext;
+
         AutoSize = true;
         AutoSizeMode = AutoSizeMode.GrowAndShrink;
         FormBorderStyle = FormBorderStyle.None;
@@ -743,7 +746,7 @@ public sealed class PopupForm : Form
         cancelButton.Click += (s, e) => CompleteConfirmation(ReplacementPreviewResult.Cancel);
 
         var approveButton = ActionButtonFactory.CreatePrimaryActionButton(approveButtonText);
-        approveButton.Click += (s, e) => CompleteConfirmation(ReplacementPreviewResult.Accept);
+        approveButton.Click += (_, _) => ReplaceInSourceApp();
 
         var copyButton = ActionButtonFactory.CreateSecondaryActionButton(copyButtonText);
         copyButton.Margin = new Padding(8, 0, 0, 0);
@@ -756,6 +759,35 @@ public sealed class PopupForm : Form
 
         PerformLayout();
         return _confirmationCompletion.Task;
+    }
+
+    private void ReplaceInSourceApp()
+    {
+        if (IsDisposed)
+        {
+            return;
+        }
+
+        var textToApply = string.IsNullOrWhiteSpace(GetSelectionText())
+            ? _textEditContext.OriginalText
+            : GetSelectionText();
+
+        try
+        {
+            if (_textEditContext.TargetWindow != IntPtr.Zero)
+            {
+                NativeMethods.SetForegroundWindow(_textEditContext.TargetWindow);
+            }
+
+            Clipboard.SetText(textToApply);
+            NativeMethods.SendKeyCombo(NativeMethods.VK_CONTROL, NativeMethods.VK_V);
+            CompleteConfirmation(ReplacementPreviewResult.Accept);
+        }
+        catch (Exception)
+        {
+            UpdateMessage("Det gick inte att ersätta texten i källappen.");
+            RestartAutoClose(4000);
+        }
     }
 
     private void CompleteConfirmation(ReplacementPreviewResult result)

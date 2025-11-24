@@ -50,7 +50,8 @@ public sealed class PopupController : IDisposable
         ClosePopup();
         _currentContext = context;
 
-        var popup = new PopupForm("Välj en åtgärd för den markerade texten.", 30000, context.OriginalText);
+        var editContext = new TextEditContext(context.SourceWindow, context.OriginalText);
+        var popup = new PopupForm(editContext, "Välj en åtgärd för den markerade texten.", 30000, context.OriginalText);
         popup.ActionInvoked += HandleActionInvokedAsync;
         popup.RespondRequested += HandleRespondRequestedAsync;
         popup.RespondSuggestionApplied += HandleRespondSuggestionApplied;
@@ -182,11 +183,6 @@ public sealed class PopupController : IDisposable
             switch (previewResult)
             {
                 case ReplacementPreviewResult.Accept:
-                    await _clipboardService.ReplaceSelectionAsync(
-                        _currentContext.OriginalText,
-                        replacementText,
-                        _currentContext.SourceWindow,
-                        CancellationToken.None);
                     popup.UpdateMessage(result.SuccessMessage ?? "Ersättningen har infogats.");
                     popup.RestartAutoClose(1500);
                     break;
