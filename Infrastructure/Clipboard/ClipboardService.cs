@@ -57,6 +57,8 @@ public sealed class ClipboardService : IClipboardService
             return null;
         }
 
+        string? capturedText = null;
+
         try
         {
             _isReadingSelection = true;
@@ -87,7 +89,7 @@ public sealed class ClipboardService : IClipboardService
                 var text = System.Windows.Forms.Clipboard.GetText();
                 if (!string.IsNullOrWhiteSpace(text))
                 {
-                    return text;
+                    capturedText = text;
                 }
             }
         }
@@ -97,11 +99,17 @@ public sealed class ClipboardService : IClipboardService
         }
         finally
         {
-            RestoreClipboardSnapshot(snapshot);
+            // If we managed to capture something, leave the clipboard alone so the
+            // helper popup can use the text. Otherwise, restore the previous contents.
+            if (capturedText is null)
+            {
+                RestoreClipboardSnapshot(snapshot);
+            }
+
             _isReadingSelection = false;
         }
 
-        return null;
+        return capturedText;
     }
 
     private async Task ReplaceSelectionInternalAsync(string originalText, string replacementText, IntPtr targetWindow, CancellationToken cancellationToken)
