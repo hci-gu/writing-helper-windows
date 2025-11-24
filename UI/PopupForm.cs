@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using GlobalTextHelper.Domain.Responding;
+using GlobalTextHelper.Domain.Selection;
 
 namespace GlobalTextHelper.UI;
 
@@ -27,11 +29,12 @@ public sealed class PopupForm : Form
     private readonly List<ContextMenuStrip> _optionMenus = new();
     private readonly List<PopupActionDescriptor> _rewriteActionDescriptors = new();
     private readonly string _defaultMessage;
+    private readonly TextEditContext _textEditContext;
     private PopupViewMode _currentView = PopupViewMode.ModeSelection;
     private TaskCompletionSource<ReplacementPreviewResult>? _confirmationCompletion;
     private bool _isBusy;
 
-    public PopupForm(string message, int autohideMs, string selectionText)
+    public PopupForm(string message, int autohideMs, string selectionText, TextEditContext textEditContext)
     {
         AutoSize = true;
         AutoSizeMode = AutoSizeMode.GrowAndShrink;
@@ -42,6 +45,8 @@ public sealed class PopupForm : Form
         BackColor = Theme.SurfaceColor;
         Opacity = 0.98;
         Padding = new Padding(Theme.PaddingSmall);
+
+        _textEditContext = textEditContext ?? throw new ArgumentNullException(nameof(textEditContext));
 
         var layout = new TableLayoutPanel
         {
@@ -758,6 +763,29 @@ public sealed class PopupForm : Form
         return _confirmationCompletion.Task;
     }
 
+    public void ReplaceInSourceApp(string newText)
+    {
+        if (IsDisposed || string.IsNullOrWhiteSpace(newText))
+        {
+            return;
+        }
+
+        try
+        {
+            if (_textEditContext.TargetWindow != IntPtr.Zero)
+            {
+                NativeMethods.SetForegroundWindow(_textEditContext.TargetWindow);
+            }
+
+            Clipboard.SetText(newText);
+            NativeMethods.SendKeyCombo(0x11, 0x56);
+        }
+        catch
+        {
+            // Best-effort: failure to paste shouldn't crash the popup.
+        }
+    }
+
     private void CompleteConfirmation(ReplacementPreviewResult result)
     {
         if (_confirmationCompletion is null)
@@ -848,6 +876,66 @@ public sealed class PopupForm : Form
             ny = Math.Max(screen.Top + 8, ny);
             Location = new Point(nx, ny);
         }));
+    }
+
+    private static class NativeMethods
+    {
+        [DllImport("user32.dll")]
+        public static extern bool SetForegroundWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
+
+        public static void SendKeyCombo(ushort modifierVk, ushort keyVk)
+        {
+            var inputs = new INPUT[4];
+            inputs[0] = CreateKeyInput(modifierVk, false);
+            inputs[1] = CreateKeyInput(keyVk, false);
+            inputs[2] = CreateKeyInput(keyVk, true);
+            inputs[3] = CreateKeyInput(modifierVk, true);
+
+            SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
+        }
+
+        private static INPUT CreateKeyInput(ushort virtualKey, bool keyUp)
+        {
+            return new INPUT
+            {
+                type = 1, // INPUT_KEYBOARD
+                U = new InputUnion
+                {
+                    ki = new KEYBDINPUT
+                    {
+                        wVk = virtualKey,
+                        dwFlags = keyUp ? 0x0002u : 0,
+                        dwExtraInfo = IntPtr.Zero
+                    }
+                }
+            };
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct INPUT
+        {
+            public uint type;
+            public InputUnion U;
+        }
+
+        [StructLayout(LayoutKind.Explicit)]
+        private struct InputUnion
+        {
+            [FieldOffset(0)] public KEYBDINPUT ki;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct KEYBDINPUT
+        {
+            public ushort wVk;
+            public ushort wScan;
+            public uint dwFlags;
+            public uint time;
+            public IntPtr dwExtraInfo;
+        }
     }
 }
 
