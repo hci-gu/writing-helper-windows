@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using GlobalTextHelper.Domain.Prompting;
+using GlobalTextHelper.Infrastructure.Analytics;
 using GlobalTextHelper.Infrastructure.Logging;
 using GlobalTextHelper.Infrastructure.OpenAi;
 
@@ -23,12 +24,18 @@ public sealed class RewriteSelectionAction : ITextAction
     private readonly TextSelectionPromptBuilder _promptBuilder;
     private readonly IOpenAiClientFactory _clientFactory;
     private readonly ILogger _logger;
+    private readonly IAnalyticsTracker _analytics;
 
-    public RewriteSelectionAction(TextSelectionPromptBuilder promptBuilder, IOpenAiClientFactory clientFactory, ILogger logger)
+    public RewriteSelectionAction(
+        TextSelectionPromptBuilder promptBuilder,
+        IOpenAiClientFactory clientFactory,
+        ILogger logger,
+        IAnalyticsTracker analytics)
     {
         _promptBuilder = promptBuilder;
         _clientFactory = clientFactory;
         _logger = logger;
+        _analytics = analytics ?? throw new ArgumentNullException(nameof(analytics));
     }
 
     public string Id => "rewrite";
@@ -40,6 +47,7 @@ public sealed class RewriteSelectionAction : ITextAction
     {
         try
         {
+            _analytics.TrackFunctionUsed(Id);
             var client = _clientFactory.CreateClient();
             string style = optionId ?? _options.First().Id;
             string rewritten = await _promptBuilder.RewriteSelectionAsync(client, selectedText, style);

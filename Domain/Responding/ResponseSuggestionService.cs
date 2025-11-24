@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using GlobalTextHelper.Infrastructure.Analytics;
 using GlobalTextHelper.Infrastructure.Logging;
 using GlobalTextHelper.Infrastructure.OpenAi;
 
@@ -12,6 +13,8 @@ namespace GlobalTextHelper.Domain.Responding;
 
 public sealed class ResponseSuggestionService
 {
+    private const string AnalyticsFunctionName = "respond";
+
     private const string Instructions =
         "You help draft short replies to a highlighted message. Given the user's input, " +
         "produce three response options:\n" +
@@ -29,15 +32,18 @@ public sealed class ResponseSuggestionService
     private readonly Func<string?> _promptPreambleProvider;
     private readonly IOpenAiClientFactory _clientFactory;
     private readonly ILogger _logger;
+    private readonly IAnalyticsTracker _analytics;
 
     public ResponseSuggestionService(
         Func<string?> promptPreambleProvider,
         IOpenAiClientFactory clientFactory,
-        ILogger logger)
+        ILogger logger,
+        IAnalyticsTracker analytics)
     {
         _promptPreambleProvider = promptPreambleProvider ?? throw new ArgumentNullException(nameof(promptPreambleProvider));
         _clientFactory = clientFactory ?? throw new ArgumentNullException(nameof(clientFactory));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _analytics = analytics ?? throw new ArgumentNullException(nameof(analytics));
     }
 
     public async Task<IReadOnlyList<ResponseSuggestion>> GenerateSuggestionsAsync(
@@ -49,6 +55,7 @@ public sealed class ResponseSuggestionService
 
         try
         {
+            _analytics.TrackFunctionUsed(AnalyticsFunctionName);
             var client = _clientFactory.CreateClient();
             string prompt = BuildPrompt(selectedText);
             string completion = await client.SendPromptAsync(prompt, temperature: 0.4, maxOutputTokens: 600, cancellationToken);

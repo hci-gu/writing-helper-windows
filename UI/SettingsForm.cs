@@ -8,12 +8,11 @@ public sealed class SettingsForm : Form
 {
     private readonly TextBox _apiKeyTextBox;
     private readonly Label _statusLabel;
-    private readonly NumericUpDown _minSelectionLengthBox;
     private readonly TextBox _promptPreambleTextBox;
 
     public SettingsForm()
     {
-        Text = "Inställningar";
+        Text = "Inst��llningar";
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;
@@ -27,7 +26,7 @@ public sealed class SettingsForm : Form
         var layout = new TableLayoutPanel
         {
             ColumnCount = 1,
-            RowCount = 10,
+            RowCount = 8,
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             Dock = DockStyle.Fill,
@@ -42,14 +41,12 @@ public sealed class SettingsForm : Form
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         var instructions = new Label
         {
             AutoSize = true,
             MaximumSize = new Size(380, 0),
-            Text = "Ange din OpenAI-API-nyckel för att aktivera assistenten. Om miljövariabeln OPENAI_API_KEY är satt används den i stället.",
+            Text = "Ange din OpenAI-API-nyckel f��r att aktivera assistenten. Om milj��variabeln OPENAI_API_KEY ��r satt anv��nds den i st��llet.",
             Font = Theme.BodyFont,
             ForeColor = Theme.TextColor,
             Margin = new Padding(0, 0, 0, Theme.PaddingMedium)
@@ -68,26 +65,6 @@ public sealed class SettingsForm : Form
         {
             Width = 360,
             UseSystemPasswordChar = true,
-            Font = Theme.BodyFont,
-            ForeColor = Theme.TextColor,
-            BackColor = Theme.SurfaceColor,
-            BorderStyle = BorderStyle.FixedSingle
-        };
-
-        var minSelectionLengthLabel = new Label
-        {
-            AutoSize = true,
-            Text = "Minsta markeringslängd",
-            Margin = new Padding(0, Theme.PaddingMedium, 0, 4),
-            Font = Theme.ButtonFont,
-            ForeColor = Theme.TextColor
-        };
-
-        _minSelectionLengthBox = new NumericUpDown
-        {
-            Width = 120,
-            Minimum = 1,
-            Maximum = 1000,
             Font = Theme.BodyFont,
             ForeColor = Theme.TextColor,
             BackColor = Theme.SurfaceColor,
@@ -122,7 +99,7 @@ public sealed class SettingsForm : Form
             MaximumSize = new Size(380, 0),
             ForeColor = Theme.TextMutedColor,
             Font = Theme.SmallFont,
-            Text = "Allt du skriver här läggs till i början av uppdragen så att assistenten vet mer om dig.",
+            Text = "Allt du skriver h��r l��ggs till i b��rjan av uppdragen sǾ att assistenten vet mer om dig.",
             Margin = new Padding(0, 4, 0, 0)
         };
 
@@ -162,12 +139,10 @@ public sealed class SettingsForm : Form
         layout.Controls.Add(apiKeyLabel, 0, 1);
         layout.Controls.Add(_apiKeyTextBox, 0, 2);
         layout.Controls.Add(_statusLabel, 0, 3);
-        layout.Controls.Add(minSelectionLengthLabel, 0, 4);
-        layout.Controls.Add(_minSelectionLengthBox, 0, 5);
-        layout.Controls.Add(promptPreambleLabel, 0, 6);
-        layout.Controls.Add(_promptPreambleTextBox, 0, 7);
-        layout.Controls.Add(promptInstructions, 0, 8);
-        layout.Controls.Add(buttonPanel, 0, 9);
+        layout.Controls.Add(promptPreambleLabel, 0, 4);
+        layout.Controls.Add(_promptPreambleTextBox, 0, 5);
+        layout.Controls.Add(promptInstructions, 0, 6);
+        layout.Controls.Add(buttonPanel, 0, 7);
 
         Controls.Add(layout);
     }
@@ -184,12 +159,6 @@ public sealed class SettingsForm : Form
         set => _promptPreambleTextBox.Text = value ?? string.Empty;
     }
 
-    public int MinSelectionLength
-    {
-        get => (int)_minSelectionLengthBox.Value;
-        set => _minSelectionLengthBox.Value = value;
-    }
-
     public bool RequireApiKey { get; set; }
 
     private void OnSaveClicked(object? sender, EventArgs e)
@@ -201,6 +170,6 @@ public sealed class SettingsForm : Form
             return;
         }
 
-        _statusLabel.Text = "En API-nyckel krävs.";
+        _statusLabel.Text = "En API-nyckel kr��vs.";
     }
 }
