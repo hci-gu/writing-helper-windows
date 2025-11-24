@@ -375,6 +375,27 @@ public sealed class PopupForm : Form
         }
     }
 
+    protected override void WndProc(ref Message m)
+    {
+        const int WM_NCHITTEST = 0x0084;
+        const int HTCLIENT = 1;
+        const int HTCAPTION = 2;
+
+        base.WndProc(ref m);
+
+        if (m.Msg == WM_NCHITTEST && (int)m.Result == HTCLIENT)
+        {
+            // Treat all client clicks as caption to allow dragging the popup.
+            m.Result = (IntPtr)HTCAPTION;
+        }
+    }
+
+    protected override void OnSizeChanged(EventArgs e)
+    {
+        base.OnSizeChanged(e);
+        EnsureWithinScreen();
+    }
+
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
         if (_confirmationCompletion is not null)
@@ -691,6 +712,7 @@ public sealed class PopupForm : Form
 
         newHeight = Math.Max(minHeight, Math.Min(newHeight, maxHeight));
         _selectionTextBox.Height = newHeight;
+        EnsureWithinScreen();
     }
 
     public void SetRespondSuggestions(IEnumerable<ResponseSuggestion> suggestions)
@@ -951,6 +973,7 @@ public sealed class PopupForm : Form
         _respondPanel.Visible = showRespond;
         _loadingPanel.Visible = _isBusy;
         PerformLayout();
+        EnsureWithinScreen();
     }
 
     protected override void Dispose(bool disposing)
@@ -983,7 +1006,23 @@ public sealed class PopupForm : Form
             nx = Math.Max(screen.Left + 8, nx);
             ny = Math.Max(screen.Top + 8, ny);
             Location = new Point(nx, ny);
+            EnsureWithinScreen();
         }));
+    }
+
+    private void EnsureWithinScreen()
+    {
+        if (IsDisposed)
+        {
+            return;
+        }
+
+        var screen = Screen.FromPoint(Location).WorkingArea;
+        int x = Math.Min(Location.X, screen.Right - Width - 8);
+        int y = Math.Min(Location.Y, screen.Bottom - Height - 8);
+        x = Math.Max(screen.Left + 8, x);
+        y = Math.Max(screen.Top + 8, y);
+        Location = new Point(x, y);
     }
 }
 
