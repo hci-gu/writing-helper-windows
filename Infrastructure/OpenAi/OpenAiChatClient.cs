@@ -114,7 +114,6 @@ namespace GlobalTextHelper.Infrastructure.OpenAi
 
             using HttpResponseMessage response = await _httpClient.SendAsync(httpRequest, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
             string json = await response.Content.ReadAsStringAsync(cancellationToken);
-            LogRawResponse(json);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -140,12 +139,10 @@ namespace GlobalTextHelper.Infrastructure.OpenAi
                 if (truncatedByLength)
                 {
                     Console.WriteLine("OpenAI response was truncated because it hit the max token limit.");
-                    LogRawResponse(json);
                     throw new InvalidOperationException("OpenAI-svaret avbröts innan det hann bli klart. Försök igen senare.");
                 }
 
                 Console.WriteLine("OpenAI response missing message content; dumping payload for inspection.");
-                LogRawResponse(json);
                 throw new InvalidOperationException("OpenAI-svaret innehöll inget meddelandeinnehåll.");
             }
 
