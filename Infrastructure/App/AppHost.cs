@@ -16,6 +16,7 @@ namespace GlobalTextHelper.Infrastructure.App;
 
 internal sealed class AppHost : ApplicationContext
 {
+    private const string HardcodedOpenAiApiKey = "REPLACE_WITH_OPENAI_API_KEY";
     private readonly MainForm _mainForm;
     private readonly SelectionWorkflow _workflow;
     private readonly SelectionWatcher _selectionWatcher;
@@ -36,7 +37,7 @@ internal sealed class AppHost : ApplicationContext
         _clipboardService = new ClipboardService();
         _workflow = new SelectionWorkflow();
         _userSettings = UserSettings.Load();
-        _openAiClientFactory = new OpenAiClientFactory(GetStoredApiKey);
+        _openAiClientFactory = new OpenAiClientFactory(GetConfiguredApiKey);
 
         _mainForm = new MainForm();
         _mainForm.CreateControl();
@@ -69,23 +70,6 @@ internal sealed class AppHost : ApplicationContext
 
         MainForm = _mainForm;
 
-        if (!HasConfiguredApiKey())
-        {
-            if (_mainForm.IsHandleCreated)
-            {
-                _mainForm.BeginInvoke(new Action(() => ShowSettingsDialog(requireApiKey: true)));
-            }
-            else
-            {
-                EventHandler? handler = null;
-                handler = (_, __) =>
-                {
-                    _mainForm.HandleCreated -= handler;
-                    _mainForm.BeginInvoke(new Action(() => ShowSettingsDialog(requireApiKey: true)));
-                };
-                _mainForm.HandleCreated += handler;
-            }
-        }
     }
 
     private void OnSelectionCaptured(object? sender, SelectionCapturedEventArgs e)
@@ -118,35 +102,22 @@ internal sealed class AppHost : ApplicationContext
         base.Dispose(disposing);
     }
 
-    private string? GetStoredApiKey()
+    private string? GetConfiguredApiKey()
     {
-        return string.IsNullOrWhiteSpace(_userSettings.OpenAiApiKey)
+        return string.IsNullOrWhiteSpace(HardcodedOpenAiApiKey)
             ? null
-            : _userSettings.OpenAiApiKey;
+            : HardcodedOpenAiApiKey;
     }
 
-    private bool HasConfiguredApiKey()
-    {
-        if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OPENAI_API_KEY")))
-        {
-            return true;
-        }
-
-        return !string.IsNullOrWhiteSpace(_userSettings.OpenAiApiKey);
-    }
-
-    private void ShowSettingsDialog(bool requireApiKey = false)
+    private void ShowSettingsDialog()
     {
         using var dialog = new SettingsForm
         {
-            OpenAiApiKey = _userSettings.OpenAiApiKey,
-            PromptPreamble = _userSettings.PromptPreamble,
-            RequireApiKey = requireApiKey
+            PromptPreamble = _userSettings.PromptPreamble
         };
 
         if (dialog.ShowDialog(_mainForm) == DialogResult.OK)
         {
-            _userSettings.OpenAiApiKey = dialog.OpenAiApiKey;
             _userSettings.PromptPreamble = dialog.PromptPreamble;
             _userSettings.Save();
             _openAiClientFactory.InvalidateClient();

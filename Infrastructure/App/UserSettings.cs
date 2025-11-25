@@ -13,8 +13,6 @@ internal sealed class UserSettings
         WriteIndented = true
     };
 
-    public string? OpenAiApiKey { get; set; }
-
     public string? PromptPreamble { get; set; }
 
     public static UserSettings Load()

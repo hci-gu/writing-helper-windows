@@ -6,8 +6,6 @@ namespace GlobalTextHelper.UI;
 
 public sealed class SettingsForm : Form
 {
-    private readonly TextBox _apiKeyTextBox;
-    private readonly Label _statusLabel;
     private readonly TextBox _promptPreambleTextBox;
 
     public SettingsForm()
@@ -26,7 +24,7 @@ public sealed class SettingsForm : Form
         var layout = new TableLayoutPanel
         {
             ColumnCount = 1,
-            RowCount = 8,
+            RowCount = 5,
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             Dock = DockStyle.Fill,
@@ -38,37 +36,15 @@ public sealed class SettingsForm : Form
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         var instructions = new Label
         {
             AutoSize = true,
             MaximumSize = new Size(380, 0),
-            Text = "Ange din OpenAI-API-nyckel för att aktivera assistenten. Om miljövariabeln OPENAI_API_KEY är satt används den i stället.",
+            Text = "Berätta kort om dig själv så att assistenten kan skriva svar som låter mer som du.",
             Font = Theme.BodyFont,
             ForeColor = Theme.TextColor,
             Margin = new Padding(0, 0, 0, Theme.PaddingMedium)
-        };
-
-        var apiKeyLabel = new Label
-        {
-            AutoSize = true,
-            Text = "OpenAI-API-nyckel",
-            Margin = new Padding(0, 0, 0, 4),
-            Font = Theme.ButtonFont, // Semibold
-            ForeColor = Theme.TextColor
-        };
-
-        _apiKeyTextBox = new TextBox
-        {
-            Width = 360,
-            UseSystemPasswordChar = true,
-            Font = Theme.BodyFont,
-            ForeColor = Theme.TextColor,
-            BackColor = Theme.SurfaceColor,
-            BorderStyle = BorderStyle.FixedSingle
         };
 
         var promptPreambleLabel = new Label
@@ -103,14 +79,6 @@ public sealed class SettingsForm : Form
             Margin = new Padding(0, 4, 0, 0)
         };
 
-        _statusLabel = new Label
-        {
-            AutoSize = true,
-            ForeColor = Theme.ErrorColor,
-            Margin = new Padding(0, 6, 0, 0),
-            Font = Theme.SmallFont
-        };
-
         var buttonPanel = new FlowLayoutPanel
         {
             FlowDirection = FlowDirection.RightToLeft,
@@ -136,21 +104,12 @@ public sealed class SettingsForm : Form
         buttonPanel.Controls.Add(cancelButton);
 
         layout.Controls.Add(instructions, 0, 0);
-        layout.Controls.Add(apiKeyLabel, 0, 1);
-        layout.Controls.Add(_apiKeyTextBox, 0, 2);
-        layout.Controls.Add(_statusLabel, 0, 3);
-        layout.Controls.Add(promptPreambleLabel, 0, 4);
-        layout.Controls.Add(_promptPreambleTextBox, 0, 5);
-        layout.Controls.Add(promptInstructions, 0, 6);
-        layout.Controls.Add(buttonPanel, 0, 7);
+        layout.Controls.Add(promptPreambleLabel, 0, 1);
+        layout.Controls.Add(_promptPreambleTextBox, 0, 2);
+        layout.Controls.Add(promptInstructions, 0, 3);
+        layout.Controls.Add(buttonPanel, 0, 4);
 
         Controls.Add(layout);
-    }
-
-    public string? OpenAiApiKey
-    {
-        get => string.IsNullOrWhiteSpace(_apiKeyTextBox.Text) ? null : _apiKeyTextBox.Text.Trim();
-        set => _apiKeyTextBox.Text = value ?? string.Empty;
     }
 
     public string? PromptPreamble
@@ -159,17 +118,9 @@ public sealed class SettingsForm : Form
         set => _promptPreambleTextBox.Text = value ?? string.Empty;
     }
 
-    public bool RequireApiKey { get; set; }
-
     private void OnSaveClicked(object? sender, EventArgs e)
     {
-        if (!RequireApiKey || !string.IsNullOrWhiteSpace(OpenAiApiKey))
-        {
-            DialogResult = DialogResult.OK;
-            Close();
-            return;
-        }
-
-        _statusLabel.Text = "En API-nyckel krävs.";
+        DialogResult = DialogResult.OK;
+        Close();
     }
 }
