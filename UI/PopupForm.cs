@@ -460,6 +460,8 @@ public sealed class PopupForm : Form
 
     private void ShowModeSelection()
     {
+        CancelPendingConfirmation();
+
         if (_currentView == PopupViewMode.RewriteActions)
         {
             ClearActionButtons();
@@ -482,6 +484,8 @@ public sealed class PopupForm : Form
 
     private void ShowRewriteActions()
     {
+        CancelPendingConfirmation();
+
         if (_rewriteActionDescriptors.Count == 0)
         {
             return;
@@ -669,6 +673,8 @@ public sealed class PopupForm : Form
 
     private void ShowRespondView()
     {
+        CancelPendingConfirmation();
+
         ClearActionButtons();
         _currentView = PopupViewMode.Respond;
         UpdateMessage("Svara på den markerade texten.");
@@ -955,6 +961,8 @@ public sealed class PopupForm : Form
         if (IsDisposed)
             throw new ObjectDisposedException(nameof(PopupForm));
 
+        CancelPendingConfirmation();
+
         if (_confirmationCompletion is not null)
             throw new InvalidOperationException("A confirmation is already in progress.");
 
@@ -983,6 +991,11 @@ public sealed class PopupForm : Form
 
         PerformLayout();
         return _confirmationCompletion.Task;
+    }
+
+    private void CancelPendingConfirmation()
+    {
+        CompleteConfirmation(ReplacementPreviewResult.Cancel);
     }
 
     private void CompleteConfirmation(ReplacementPreviewResult result)
