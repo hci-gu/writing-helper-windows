@@ -970,7 +970,7 @@ public sealed class PopupForm : Form
 
         var cancelButton = ActionButtonFactory.CreateSecondaryActionButton(cancelButtonText);
         cancelButton.Margin = new Padding(8, 0, 0, 0);
-        cancelButton.Click += (s, e) => CompleteConfirmation(ReplacementPreviewResult.Cancel);
+        cancelButton.Click += (s, e) => Close();
 
         _buttonPanel.Controls.Add(copyButton);
         _buttonPanel.Controls.Add(cancelButton);

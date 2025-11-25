@@ -99,7 +99,7 @@ public sealed class SettingsForm : Form
             MaximumSize = new Size(380, 0),
             ForeColor = Theme.TextMutedColor,
             Font = Theme.SmallFont,
-            Text = "Allt du skriver här läggs till i början av uppdragen så att assistenten vet mer om dig.",
+            Text = "Skriv saker om dig själv här så att assistenten vet mer om dig och kan fylla ut sina svar bättre.",
             Margin = new Padding(0, 4, 0, 0)
         };
 

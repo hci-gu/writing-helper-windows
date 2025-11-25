@@ -168,6 +168,12 @@ public sealed class PopupController : IDisposable
                 result.ReplacementText,
                 result.PreviewAcceptLabel ?? "Använd ersättning");
 
+            if (previewResult == ReplacementPreviewResult.Cancel)
+            {
+                ClosePopup();
+                return;
+            }
+
             popup.ClearActionButtons();
 
             var replacementText = string.IsNullOrWhiteSpace(popup.GetSelectionText())
