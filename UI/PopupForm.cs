@@ -381,7 +381,6 @@ public sealed class PopupForm : Form
             var cp = base.CreateParams;
             cp.ExStyle |= 0x00000080; // WS_EX_TOOLWINDOW
             cp.ExStyle |= 0x00000008; // WS_EX_TOPMOST
-            cp.ExStyle |= 0x08000000; // WS_EX_NOACTIVATE
             return cp;
         }
     }
@@ -723,7 +722,7 @@ public sealed class PopupForm : Form
         }
     }
 
-    public void SetSelectionText(string text)
+    public void SetSelectionText(string text, bool focus = false)
     {
         if (IsDisposed)
         {
@@ -734,6 +733,12 @@ public sealed class PopupForm : Form
         _selectionTextBox.SelectionStart = _selectionTextBox.TextLength;
         _selectionTextBox.SelectionLength = 0;
         _selectionTextBox.ScrollToCaret();
+
+        if (focus && !_selectionTextBox.IsDisposed)
+        {
+            _selectionTextBox.Focus();
+        }
+
         AdjustSelectionTextBoxHeight();
     }
 
@@ -903,7 +908,7 @@ public sealed class PopupForm : Form
         }
 
         StopAutoClose();
-        SetSelectionText(suggestion.FullResponse);
+        SetSelectionText(suggestion.FullResponse, focus: true);
         SetRespondStatus("Svaret har lagts in nedan. Redigera eller kopiera innan du skickar.");
         UpdateMessage("Ett utkast till svar har lagts in nedan.");
         RespondSuggestionApplied?.Invoke(this, new RespondSuggestionAppliedEventArgs(suggestion.Tone));
@@ -957,7 +962,7 @@ public sealed class PopupForm : Form
 
         _messageLabel.MaximumSize = new Size(480, 0);
         UpdateMessage("Granska eller justera den uppdaterade texten nedan.");
-        SetSelectionText(replacementText);
+        SetSelectionText(replacementText, focus: true);
 
         _currentView = PopupViewMode.RewriteActions;
         _buttonPanel.Controls.Clear();
