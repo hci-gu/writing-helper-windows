@@ -95,7 +95,7 @@ namespace GlobalTextHelper.Infrastructure.OpenAi
         public Task<string> SendPromptAsync(string prompt, double temperature = 0.7, CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrWhiteSpace(prompt))
-                throw new ArgumentException("Prompten f?r inte vara tom.", nameof(prompt));
+                throw new ArgumentException("Prompten får inte vara tom.", nameof(prompt));
 
             return SendPromptAsyncInternal(prompt, temperature, cancellationToken);
         }
@@ -120,11 +120,11 @@ namespace GlobalTextHelper.Infrastructure.OpenAi
             {
                 var error = TryDeserialize<OpenAiErrorResponse>(json);
                 string message = error?.Error?.Message ?? $"HTTP {(int)response.StatusCode} {response.ReasonPhrase}";
-                throw new HttpRequestException($"OpenAI-beg??ran misslyckades: {message}");
+                throw new HttpRequestException($"OpenAI-begäran misslyckades: {message}");
             }
 
             var completion = TryDeserialize<ChatCompletionResponse>(json)
-                ?? throw new InvalidOperationException("OpenAI returnerade ett ov??ntat svar.");
+                ?? throw new InvalidOperationException("OpenAI returnerade ett oväntat svar.");
 
             bool truncatedByLength = completion.Choices?
                 .Any(choice => string.Equals(choice.FinishReason, "length", StringComparison.OrdinalIgnoreCase))
@@ -141,12 +141,12 @@ namespace GlobalTextHelper.Infrastructure.OpenAi
                 {
                     Console.WriteLine("OpenAI response was truncated because it hit the max token limit.");
                     LogRawResponse(json);
-                    throw new InvalidOperationException("OpenAI-svaret avbr�ts innan det hann bli klart. F�rs�k igen senare.");
+                    throw new InvalidOperationException("OpenAI-svaret avbröts innan det hann bli klart. Försök igen senare.");
                 }
 
                 Console.WriteLine("OpenAI response missing message content; dumping payload for inspection.");
                 LogRawResponse(json);
-                throw new InvalidOperationException("OpenAI-svaret inneh??ll inget meddelandeinneh??ll.");
+                throw new InvalidOperationException("OpenAI-svaret innehöll inget meddelandeinnehåll.");
             }
 
             return content;
@@ -312,7 +312,6 @@ namespace GlobalTextHelper.Infrastructure.OpenAi
             [property: JsonPropertyName("type")] string? Type);
     }
 }
-
 
 
 

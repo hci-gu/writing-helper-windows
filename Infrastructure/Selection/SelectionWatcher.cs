@@ -34,7 +34,7 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
 
         if (!AddClipboardFormatListener(Handle))
         {
-            throw new InvalidOperationException("Det gǾr inte att registrera en urklippslyssnare.");
+            throw new InvalidOperationException("Det går inte att registrera en urklippslyssnare.");
         }
     }
 
@@ -73,7 +73,7 @@ public sealed class SelectionWatcher : NativeWindow, IDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogError("Det gick inte att l��sa frǾn urklippet", ex);
+            _logger.LogError("Det gick inte att läsa från urklippet", ex);
         }
     }
 

@@ -19,8 +19,8 @@ public sealed class MainForm : Form
         FormBorderStyle = FormBorderStyle.FixedToolWindow;
 
         _menu = new ContextMenuStrip();
-        _menu.Items.Add("�-ppna redigeraren�?�", null, (_, __) => EditorRequested?.Invoke(this, EventArgs.Empty));
-        _menu.Items.Add("Inst��llningar�?�", null, (_, __) => SettingsRequested?.Invoke(this, EventArgs.Empty));
+        _menu.Items.Add("Öppna redigeraren…", null, (_, __) => EditorRequested?.Invoke(this, EventArgs.Empty));
+        _menu.Items.Add("Inställningar…", null, (_, __) => SettingsRequested?.Invoke(this, EventArgs.Empty));
         _menu.Items.Add(new ToolStripSeparator());
         _menu.Items.Add("Avsluta", null, (_, __) => ExitRequested?.Invoke(this, EventArgs.Empty));
 

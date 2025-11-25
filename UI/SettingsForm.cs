@@ -12,7 +12,7 @@ public sealed class SettingsForm : Form
 
     public SettingsForm()
     {
-        Text = "Inst��llningar";
+        Text = "Inställningar";
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;
@@ -46,7 +46,7 @@ public sealed class SettingsForm : Form
         {
             AutoSize = true,
             MaximumSize = new Size(380, 0),
-            Text = "Ange din OpenAI-API-nyckel f��r att aktivera assistenten. Om milj��variabeln OPENAI_API_KEY ��r satt anv��nds den i st��llet.",
+            Text = "Ange din OpenAI-API-nyckel för att aktivera assistenten. Om miljövariabeln OPENAI_API_KEY är satt används den i stället.",
             Font = Theme.BodyFont,
             ForeColor = Theme.TextColor,
             Margin = new Padding(0, 0, 0, Theme.PaddingMedium)
@@ -99,7 +99,7 @@ public sealed class SettingsForm : Form
             MaximumSize = new Size(380, 0),
             ForeColor = Theme.TextMutedColor,
             Font = Theme.SmallFont,
-            Text = "Allt du skriver h��r l��ggs till i b��rjan av uppdragen sǾ att assistenten vet mer om dig.",
+            Text = "Allt du skriver här läggs till i början av uppdragen så att assistenten vet mer om dig.",
             Margin = new Padding(0, 4, 0, 0)
         };
 
@@ -170,6 +170,6 @@ public sealed class SettingsForm : Form
             return;
         }
 
-        _statusLabel.Text = "En API-nyckel kr��vs.";
+        _statusLabel.Text = "En API-nyckel krävs.";
     }
 }
