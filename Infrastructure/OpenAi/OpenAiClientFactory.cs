@@ -19,20 +19,20 @@ public sealed class OpenAiClientFactory : IOpenAiClientFactory
             return _client;
         }
 
-        string? envApiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
-        if (!string.IsNullOrWhiteSpace(envApiKey))
+        string? apiKey = _apiKeyProvider();
+        if (!string.IsNullOrWhiteSpace(apiKey))
         {
-            _client = OpenAiChatClient.FromEnvironment();
+            _client = new OpenAiChatClient(apiKey);
         }
         else
         {
-            string? apiKey = _apiKeyProvider();
-            if (string.IsNullOrWhiteSpace(apiKey))
+            string? envApiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
+            if (string.IsNullOrWhiteSpace(envApiKey))
             {
                 throw new InvalidOperationException("Ange en OpenAI-API-nyckel i miljön eller i appens inställningar.");
             }
 
-            _client = new OpenAiChatClient(apiKey);
+            _client = OpenAiChatClient.FromEnvironment();
         }
 
         return _client;

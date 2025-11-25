@@ -895,19 +895,16 @@ public sealed class PopupForm : Form
 
         _buttonPanel.Controls.Clear();
         _buttonPanel.Enabled = true;
+        _buttonPanel.FlowDirection = FlowDirection.LeftToRight;
+        _buttonPanel.WrapContents = false;
+
+        var copyButton = ActionButtonFactory.CreatePrimaryActionButton(copyButtonText);
+        copyButton.Click += (s, e) => CompleteConfirmation(ReplacementPreviewResult.CopyToClipboard);
 
         var cancelButton = ActionButtonFactory.CreateSecondaryActionButton(cancelButtonText);
         cancelButton.Margin = new Padding(8, 0, 0, 0);
         cancelButton.Click += (s, e) => CompleteConfirmation(ReplacementPreviewResult.Cancel);
 
-        var approveButton = ActionButtonFactory.CreatePrimaryActionButton(approveButtonText);
-        approveButton.Click += (s, e) => CompleteConfirmation(ReplacementPreviewResult.Accept);
-
-        var copyButton = ActionButtonFactory.CreateSecondaryActionButton(copyButtonText);
-        copyButton.Margin = new Padding(8, 0, 0, 0);
-        copyButton.Click += (s, e) => CompleteConfirmation(ReplacementPreviewResult.CopyToClipboard);
-
-        _buttonPanel.Controls.Add(approveButton);
         _buttonPanel.Controls.Add(copyButton);
         _buttonPanel.Controls.Add(cancelButton);
         UpdateActionAreaVisibility();
