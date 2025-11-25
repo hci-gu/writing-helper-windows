@@ -16,7 +16,10 @@ namespace GlobalTextHelper.Infrastructure.OpenAi
     /// </summary>
     public sealed class OpenAiChatClient : IDisposable
     {
-        private const string AzureApiVersion = "2024-12-01-preview";
+        public const string DefaultModel = "gpt-5-mini";
+        public const string AlternateModel = "gpt-4o-mini";
+        private const string Gpt5ApiVersion = "2024-12-01-preview";
+        private const string Gpt4oApiVersion = "2024-02-15-preview";
         private static readonly Uri DefaultBaseUri = new("https://gu-ai-006.openai.azure.com/", UriKind.Absolute);
         private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
         private static readonly JsonSerializerOptions DebugJsonOptions = new(JsonSerializerDefaults.General)
@@ -27,15 +30,17 @@ namespace GlobalTextHelper.Infrastructure.OpenAi
         private readonly HttpClient _httpClient;
         private readonly bool _disposeClient;
         private readonly string _model;
+        private readonly string _apiVersion;
         private readonly string _chatCompletionsPath;
 
-        public OpenAiChatClient(string apiKey, string model = "gpt-5-mini", HttpClient? httpClient = null, Uri? baseUri = null)
+        public OpenAiChatClient(string apiKey, string model = DefaultModel, HttpClient? httpClient = null, Uri? baseUri = null)
         {
             if (string.IsNullOrWhiteSpace(apiKey))
                 throw new ArgumentException("En OpenAI-API-nyckel måste anges.", nameof(apiKey));
 
-            _model = string.IsNullOrWhiteSpace(model) ? "gpt-5-mini" : model;
-            _chatCompletionsPath = BuildChatCompletionsPath(_model);
+            _model = string.IsNullOrWhiteSpace(model) ? DefaultModel : model;
+            _apiVersion = ResolveApiVersion(_model);
+            _chatCompletionsPath = BuildChatCompletionsPath(_model, _apiVersion);
 
             if (httpClient is null)
             {
@@ -89,7 +94,7 @@ namespace GlobalTextHelper.Infrastructure.OpenAi
                 }
             }
 
-            return new OpenAiChatClient(apiKey, model ?? "gpt-4o-mini", httpClient, baseUri);
+            return new OpenAiChatClient(apiKey, string.IsNullOrWhiteSpace(model) ? DefaultModel : model, httpClient, baseUri);
         }
 
         public Task<string> SendPromptAsync(string prompt, double temperature = 0.7, CancellationToken cancellationToken = default)
@@ -275,10 +280,20 @@ namespace GlobalTextHelper.Infrastructure.OpenAi
             return model.StartsWith("gpt-5", StringComparison.OrdinalIgnoreCase);
         }
 
-        private static string BuildChatCompletionsPath(string deploymentName)
+        private static string BuildChatCompletionsPath(string deploymentName, string apiVersion)
         {
             string safeDeploymentName = Uri.EscapeDataString(deploymentName);
-            return $"openai/deployments/{safeDeploymentName}/chat/completions?api-version={AzureApiVersion}";
+            return $"openai/deployments/{safeDeploymentName}/chat/completions?api-version={apiVersion}";
+        }
+
+        private static string ResolveApiVersion(string model)
+        {
+            if (!string.IsNullOrWhiteSpace(model) && model.StartsWith("gpt-4o", StringComparison.OrdinalIgnoreCase))
+            {
+                return Gpt4oApiVersion;
+            }
+
+            return Gpt5ApiVersion;
         }
 
         private sealed record ChatCompletionRequest(
@@ -309,7 +324,6 @@ namespace GlobalTextHelper.Infrastructure.OpenAi
             [property: JsonPropertyName("type")] string? Type);
     }
 }
-
 
 
 

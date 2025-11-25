@@ -35,10 +35,10 @@ internal sealed class AppHost : ApplicationContext
         _logger = new ConsoleLogger();
         _userSettings = UserSettings.Load();
         EnsureAnalyticsUserId();
-        _analytics = new AnalyticsTracker(_logger, _userSettings.AnalyticsUserId!);
+        _analytics = new AnalyticsTracker(_logger, _userSettings.AnalyticsUserId!, () => _userSettings.OpenAiModel);
         _clipboardService = new ClipboardService();
         _workflow = new SelectionWorkflow();
-        _openAiClientFactory = new OpenAiClientFactory(GetConfiguredApiKey);
+        _openAiClientFactory = new OpenAiClientFactory(GetConfiguredApiKey, () => _userSettings.OpenAiModel);
 
         _mainForm = new MainForm();
         _mainForm.CreateControl();
@@ -133,13 +133,15 @@ internal sealed class AppHost : ApplicationContext
         using var dialog = new SettingsForm
         {
             PromptPreamble = _userSettings.PromptPreamble,
-            ShowPopupOnCopy = _userSettings.ShowPopupOnCopy
+            ShowPopupOnCopy = _userSettings.ShowPopupOnCopy,
+            SelectedModel = _userSettings.OpenAiModel
         };
 
         if (dialog.ShowDialog(_mainForm) == DialogResult.OK)
         {
             _userSettings.PromptPreamble = dialog.PromptPreamble;
             _userSettings.ShowPopupOnCopy = dialog.ShowPopupOnCopy;
+            _userSettings.OpenAiModel = dialog.SelectedModel ?? OpenAiChatClient.DefaultModel;
             _userSettings.Save();
             _openAiClientFactory.InvalidateClient();
         }

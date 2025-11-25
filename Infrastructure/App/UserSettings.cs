@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Text.Json;
+using GlobalTextHelper.Infrastructure.OpenAi;
 
 namespace GlobalTextHelper.Infrastructure.App;
 
@@ -14,6 +15,8 @@ internal sealed class UserSettings
     };
 
     public string? PromptPreamble { get; set; }
+
+    public string OpenAiModel { get; set; } = OpenAiChatClient.DefaultModel;
 
     public bool ShowPopupOnCopy { get; set; } = true;
 

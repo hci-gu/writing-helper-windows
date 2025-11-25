@@ -1,6 +1,7 @@
 using System;
 using System.Drawing;
 using System.Windows.Forms;
+using GlobalTextHelper.Infrastructure.OpenAi;
 
 namespace GlobalTextHelper.UI;
 
@@ -8,6 +9,7 @@ public sealed class SettingsForm : Form
 {
     private readonly TextBox _promptPreambleTextBox;
     private readonly CheckBox _popupOnCopyCheckBox;
+    private readonly ComboBox _modelComboBox;
 
     public SettingsForm()
     {
@@ -25,13 +27,15 @@ public sealed class SettingsForm : Form
         var layout = new TableLayoutPanel
         {
             ColumnCount = 1,
-            RowCount = 6,
+            RowCount = 8,
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             Dock = DockStyle.Fill,
         };
 
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -48,6 +52,31 @@ public sealed class SettingsForm : Form
             ForeColor = Theme.TextColor,
             Margin = new Padding(0, 0, 0, Theme.PaddingMedium)
         };
+
+        var modelLabel = new Label
+        {
+            AutoSize = true,
+            Text = "AI-modell",
+            Margin = new Padding(0, Theme.PaddingMedium, 0, 4),
+            Font = Theme.ButtonFont,
+            ForeColor = Theme.TextColor
+        };
+
+        _modelComboBox = new ComboBox
+        {
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            Width = 360,
+            Font = Theme.BodyFont,
+            ForeColor = Theme.TextColor,
+            BackColor = Theme.SurfaceColor
+        };
+
+        _modelComboBox.Items.AddRange(new object[]
+        {
+            new ModelOption("GPT-5 Mini (standard)", OpenAiChatClient.DefaultModel),
+            new ModelOption("GPT-4o Mini", OpenAiChatClient.AlternateModel)
+        });
+        _modelComboBox.SelectedIndex = 0;
 
         var promptPreambleLabel = new Label
         {
@@ -117,11 +146,13 @@ public sealed class SettingsForm : Form
         buttonPanel.Controls.Add(cancelButton);
 
         layout.Controls.Add(instructions, 0, 0);
-        layout.Controls.Add(_popupOnCopyCheckBox, 0, 1);
-        layout.Controls.Add(promptPreambleLabel, 0, 2);
-        layout.Controls.Add(_promptPreambleTextBox, 0, 3);
-        layout.Controls.Add(promptInstructions, 0, 4);
-        layout.Controls.Add(buttonPanel, 0, 5);
+        layout.Controls.Add(modelLabel, 0, 1);
+        layout.Controls.Add(_modelComboBox, 0, 2);
+        layout.Controls.Add(_popupOnCopyCheckBox, 0, 3);
+        layout.Controls.Add(promptPreambleLabel, 0, 4);
+        layout.Controls.Add(_promptPreambleTextBox, 0, 5);
+        layout.Controls.Add(promptInstructions, 0, 6);
+        layout.Controls.Add(buttonPanel, 0, 7);
 
         Controls.Add(layout);
     }
@@ -138,9 +169,34 @@ public sealed class SettingsForm : Form
         set => _popupOnCopyCheckBox.Checked = value;
     }
 
+    public string? SelectedModel
+    {
+        get => (_modelComboBox.SelectedItem as ModelOption)?.Value;
+        set
+        {
+            string desired = string.IsNullOrWhiteSpace(value) ? OpenAiChatClient.DefaultModel : value;
+            for (int i = 0; i < _modelComboBox.Items.Count; i++)
+            {
+                if (_modelComboBox.Items[i] is ModelOption option &&
+                    string.Equals(option.Value, desired, StringComparison.OrdinalIgnoreCase))
+                {
+                    _modelComboBox.SelectedIndex = i;
+                    return;
+                }
+            }
+
+            _modelComboBox.SelectedIndex = 0;
+        }
+    }
+
     private void OnSaveClicked(object? sender, EventArgs e)
     {
         DialogResult = DialogResult.OK;
         Close();
+    }
+
+    private sealed record ModelOption(string Label, string Value)
+    {
+        public override string ToString() => Label;
     }
 }

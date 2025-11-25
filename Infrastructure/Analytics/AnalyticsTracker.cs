@@ -37,8 +37,9 @@ public sealed class AnalyticsTracker : IAnalyticsTracker
     private readonly ILogger _logger;
     private readonly HttpClient _httpClient;
     private readonly string _userId;
+    private readonly Func<string?> _modelProvider;
 
-    public AnalyticsTracker(ILogger logger, string userId, HttpClient? httpClient = null)
+    public AnalyticsTracker(ILogger logger, string userId, Func<string?> modelProvider, HttpClient? httpClient = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         if (string.IsNullOrWhiteSpace(userId))
@@ -47,6 +48,7 @@ public sealed class AnalyticsTracker : IAnalyticsTracker
         }
 
         _userId = userId;
+        _modelProvider = modelProvider ?? throw new ArgumentNullException(nameof(modelProvider));
         _httpClient = httpClient ?? new HttpClient();
     }
 
@@ -81,7 +83,7 @@ public sealed class AnalyticsTracker : IAnalyticsTracker
     {
         try
         {
-            var payload = new AnalyticsEvent(functionName, DateTimeOffset.UtcNow, _userId);
+            var payload = new AnalyticsEvent(functionName, DateTimeOffset.UtcNow, _userId, ResolveModel());
             using var request = new HttpRequestMessage(HttpMethod.Post, AnalyticsEndpoint)
             {
                 Content = JsonContent.Create(payload, options: SerializerOptions)
@@ -102,5 +104,11 @@ public sealed class AnalyticsTracker : IAnalyticsTracker
         }
     }
 
-    private sealed record AnalyticsEvent(string Name, DateTimeOffset Timestamp, string UserId);
+    private string ResolveModel()
+    {
+        string? model = _modelProvider();
+        return string.IsNullOrWhiteSpace(model) ? "unknown" : model;
+    }
+
+    private sealed record AnalyticsEvent(string Name, DateTimeOffset Timestamp, string UserId, string Model);
 }
