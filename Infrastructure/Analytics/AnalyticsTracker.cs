@@ -1,4 +1,8 @@
 using System;
+using System.Net.Http;
+using System.Net.Http.Json;
+using System.Text.Json;
+using System.Threading.Tasks;
 using GlobalTextHelper.Infrastructure.Logging;
 
 namespace GlobalTextHelper.Infrastructure.Analytics;
@@ -22,11 +26,21 @@ public interface IAnalyticsTracker
 
 public sealed class AnalyticsTracker : IAnalyticsTracker
 {
-    private readonly ILogger _logger;
+    private const string AnalyticsEndpoint = "https://analytics.prod.appadem.in/aphasia-project/events/data";
+    private const string ApiKeyHeaderName = "x-api-key";
+    private const string ApiKey = "aphasia-project-analytics";
+    private static readonly JsonSerializerOptions SerializerOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
 
-    public AnalyticsTracker(ILogger logger)
+    private readonly ILogger _logger;
+    private readonly HttpClient _httpClient;
+
+    public AnalyticsTracker(ILogger logger, HttpClient? httpClient = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _httpClient = httpClient ?? new HttpClient();
     }
 
     public event EventHandler<FunctionUsedEventArgs>? FunctionUsed;
@@ -39,6 +53,7 @@ public sealed class AnalyticsTracker : IAnalyticsTracker
         }
 
         _logger.LogInformation($"Function used: {functionName}");
+        _ = SendAnalyticsEventAsync(functionName);
         var handler = FunctionUsed;
         if (handler is null)
         {
@@ -54,4 +69,31 @@ public sealed class AnalyticsTracker : IAnalyticsTracker
             _logger.LogError("Analytics event handler failed", ex);
         }
     }
+
+    private async Task SendAnalyticsEventAsync(string functionName)
+    {
+        try
+        {
+            var payload = new AnalyticsEvent(functionName, DateTimeOffset.UtcNow);
+            using var request = new HttpRequestMessage(HttpMethod.Post, AnalyticsEndpoint)
+            {
+                Content = JsonContent.Create(payload, options: SerializerOptions)
+            };
+
+            request.Headers.TryAddWithoutValidation(ApiKeyHeaderName, ApiKey);
+
+            var response = await _httpClient.SendAsync(request).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogInformation(
+                    $"Analytics endpoint returned status {(int)response.StatusCode} ({response.ReasonPhrase}).");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError("Failed to send analytics event", ex);
+        }
+    }
+
+    private sealed record AnalyticsEvent(string Name, DateTimeOffset Timestamp);
 }
