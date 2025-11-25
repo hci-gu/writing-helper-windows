@@ -60,7 +60,7 @@ public sealed class ResponseSuggestionService
             _analytics.TrackFunctionUsed(AnalyticsFunctionName);
             var client = _clientFactory.CreateClient();
             string prompt = BuildPrompt(selectedText);
-            string completion = await client.SendPromptAsync(prompt, temperature: 0.4, maxCompletionTokens: 600, cancellationToken);
+            string completion = await client.SendPromptAsync(prompt, temperature: 0.4, cancellationToken);
             return ParseSuggestions(completion);
         }
         catch (Exception ex)

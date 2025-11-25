@@ -17,9 +17,6 @@ namespace GlobalTextHelper.Infrastructure.OpenAi
     public sealed class OpenAiChatClient : IDisposable
     {
         private const string AzureApiVersion = "2024-12-01-preview";
-        private const int MaxLengthRetryAttempts = 1;
-        private const int DefaultRetryCompletionTokens = 1200;
-        private const int MaxRetryCompletionTokens = 4000;
         private static readonly Uri DefaultBaseUri = new("https://gu-ai-006.openai.azure.com/", UriKind.Absolute);
         private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
         private static readonly JsonSerializerOptions DebugJsonOptions = new(JsonSerializerDefaults.General)
@@ -95,21 +92,20 @@ namespace GlobalTextHelper.Infrastructure.OpenAi
             return new OpenAiChatClient(apiKey, model ?? "gpt-4o-mini", httpClient, baseUri);
         }
 
-        public Task<string> SendPromptAsync(string prompt, double temperature = 0.7, int? maxCompletionTokens = null, CancellationToken cancellationToken = default)
+        public Task<string> SendPromptAsync(string prompt, double temperature = 0.7, CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrWhiteSpace(prompt))
                 throw new ArgumentException("Prompten f?r inte vara tom.", nameof(prompt));
 
-            return SendPromptAsyncInternal(prompt, temperature, maxCompletionTokens, cancellationToken, attempt: 0);
+            return SendPromptAsyncInternal(prompt, temperature, cancellationToken);
         }
 
-        private async Task<string> SendPromptAsyncInternal(string prompt, double temperature, int? maxCompletionTokens, CancellationToken cancellationToken, int attempt)
+        private async Task<string> SendPromptAsyncInternal(string prompt, double temperature, CancellationToken cancellationToken)
         {
             double resolvedTemperature = NormalizeTemperatureForModel(_model, temperature);
             var request = new ChatCompletionRequest(
                 Messages: new[] { new ChatRequestMessage("user", prompt) },
-                Temperature: resolvedTemperature,
-                MaxCompletionTokens: maxCompletionTokens);
+                Temperature: resolvedTemperature);
 
             using var httpRequest = new HttpRequestMessage(HttpMethod.Post, _chatCompletionsPath)
             {
@@ -145,12 +141,6 @@ namespace GlobalTextHelper.Infrastructure.OpenAi
                 {
                     Console.WriteLine("OpenAI response was truncated because it hit the max token limit.");
                     LogRawResponse(json);
-                    if (attempt < MaxLengthRetryAttempts && TryGetIncreasedMaxCompletionTokens(maxCompletionTokens, out int nextMaxTokens))
-                    {
-                        Console.WriteLine($"Retrying with maxCompletionTokens={nextMaxTokens}.");
-                        return await SendPromptAsyncInternal(prompt, temperature, nextMaxTokens, cancellationToken, attempt + 1);
-                    }
-
                     throw new InvalidOperationException("OpenAI-svaret avbr�ts innan det hann bli klart. F�rs�k igen senare.");
                 }
 
@@ -288,31 +278,6 @@ namespace GlobalTextHelper.Infrastructure.OpenAi
             return model.StartsWith("gpt-5", StringComparison.OrdinalIgnoreCase);
         }
 
-        private static bool TryGetIncreasedMaxCompletionTokens(int? currentMaxTokens, out int nextMaxTokens)
-        {
-            if (!currentMaxTokens.HasValue || currentMaxTokens.Value <= 0)
-            {
-                nextMaxTokens = DefaultRetryCompletionTokens;
-                return true;
-            }
-
-            if (currentMaxTokens.Value >= MaxRetryCompletionTokens)
-            {
-                nextMaxTokens = currentMaxTokens.Value;
-                return false;
-            }
-
-            int candidate = Math.Min(currentMaxTokens.Value + DefaultRetryCompletionTokens, MaxRetryCompletionTokens);
-            if (candidate <= currentMaxTokens.Value)
-            {
-                nextMaxTokens = currentMaxTokens.Value;
-                return false;
-            }
-
-            nextMaxTokens = candidate;
-            return true;
-        }
-
         private static string BuildChatCompletionsPath(string deploymentName)
         {
             string safeDeploymentName = Uri.EscapeDataString(deploymentName);
@@ -321,8 +286,7 @@ namespace GlobalTextHelper.Infrastructure.OpenAi
 
         private sealed record ChatCompletionRequest(
             [property: JsonPropertyName("messages")] ChatRequestMessage[] Messages,
-            [property: JsonPropertyName("temperature")] double Temperature,
-            [property: JsonPropertyName("max_completion_tokens")] int? MaxCompletionTokens);
+            [property: JsonPropertyName("temperature")] double Temperature);
 
         private sealed record ChatRequestMessage(
             [property: JsonPropertyName("role")] string Role,
