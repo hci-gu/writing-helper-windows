@@ -33,10 +33,11 @@ internal sealed class AppHost : ApplicationContext
     public AppHost()
     {
         _logger = new ConsoleLogger();
-        _analytics = new AnalyticsTracker(_logger);
+        _userSettings = UserSettings.Load();
+        EnsureAnalyticsUserId();
+        _analytics = new AnalyticsTracker(_logger, _userSettings.AnalyticsUserId!);
         _clipboardService = new ClipboardService();
         _workflow = new SelectionWorkflow();
-        _userSettings = UserSettings.Load();
         _openAiClientFactory = new OpenAiClientFactory(GetConfiguredApiKey);
 
         _mainForm = new MainForm();
@@ -70,6 +71,24 @@ internal sealed class AppHost : ApplicationContext
 
         MainForm = _mainForm;
 
+    }
+
+    private void EnsureAnalyticsUserId()
+    {
+        if (!string.IsNullOrWhiteSpace(_userSettings.AnalyticsUserId))
+        {
+            return;
+        }
+
+        _userSettings.AnalyticsUserId = Guid.NewGuid().ToString();
+        try
+        {
+            _userSettings.Save();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError("Failed to persist analytics user identifier", ex);
+        }
     }
 
     private void OnSelectionCaptured(object? sender, SelectionCapturedEventArgs e)

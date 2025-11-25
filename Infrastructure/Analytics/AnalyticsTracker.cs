@@ -36,10 +36,17 @@ public sealed class AnalyticsTracker : IAnalyticsTracker
 
     private readonly ILogger _logger;
     private readonly HttpClient _httpClient;
+    private readonly string _userId;
 
-    public AnalyticsTracker(ILogger logger, HttpClient? httpClient = null)
+    public AnalyticsTracker(ILogger logger, string userId, HttpClient? httpClient = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            throw new ArgumentException("User id cannot be empty.", nameof(userId));
+        }
+
+        _userId = userId;
         _httpClient = httpClient ?? new HttpClient();
     }
 
@@ -74,7 +81,7 @@ public sealed class AnalyticsTracker : IAnalyticsTracker
     {
         try
         {
-            var payload = new AnalyticsEvent(functionName, DateTimeOffset.UtcNow);
+            var payload = new AnalyticsEvent(functionName, DateTimeOffset.UtcNow, _userId);
             using var request = new HttpRequestMessage(HttpMethod.Post, AnalyticsEndpoint)
             {
                 Content = JsonContent.Create(payload, options: SerializerOptions)
@@ -95,5 +102,5 @@ public sealed class AnalyticsTracker : IAnalyticsTracker
         }
     }
 
-    private sealed record AnalyticsEvent(string Name, DateTimeOffset Timestamp);
+    private sealed record AnalyticsEvent(string Name, DateTimeOffset Timestamp, string UserId);
 }

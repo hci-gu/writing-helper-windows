@@ -92,6 +92,7 @@ public sealed class PopupController : IDisposable
         popup.UpdateMessage("Tar fram svarsalternativ…");
         popup.SetRespondStatus("Samlar in svarsidéer…");
         popup.SetBusyState(true);
+        _analytics.TrackFunctionUsed("respond-requested");
 
         try
         {

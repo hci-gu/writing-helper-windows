@@ -17,6 +17,8 @@ internal sealed class UserSettings
 
     public bool ShowPopupOnCopy { get; set; } = true;
 
+    public string? AnalyticsUserId { get; set; }
+
     public static UserSettings Load()
     {
         try
