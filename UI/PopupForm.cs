@@ -10,7 +10,6 @@ namespace GlobalTextHelper.UI;
 
 public sealed class PopupForm : Form
 {
-    private readonly System.Windows.Forms.Timer _timer;
     private readonly Label _messageLabel;
     private readonly TextBox _selectionTextBox;
     private readonly TableLayoutPanel _rewriteContainer;
@@ -35,7 +34,7 @@ public sealed class PopupForm : Form
     private TaskCompletionSource<ReplacementPreviewResult>? _confirmationCompletion;
     private bool _isBusy;
 
-    public PopupForm(string message, int autohideMs, string selectionText)
+    public PopupForm(string message, string selectionText)
     {
         AutoSize = true;
         AutoSizeMode = AutoSizeMode.GrowAndShrink;
@@ -135,11 +134,7 @@ public sealed class PopupForm : Form
 
         _closeButton.FlatAppearance.BorderSize = 0;
         _closeButton.FlatAppearance.MouseOverBackColor = Theme.SecondaryHoverColor;
-        _closeButton.Click += (s, e) =>
-        {
-            StopAutoClose();
-            Close();
-        };
+        _closeButton.Click += (s, e) => Close();
 
         headerPanel.Controls.Add(_closeButton, 1, 0);
         layout.Controls.Add(headerPanel, 0, 0);
@@ -356,13 +351,6 @@ public sealed class PopupForm : Form
             using var backgroundPen = new Pen(Theme.BorderColor);
             e.Graphics.DrawRectangle(backgroundPen, 0, 0, Width - 1, Height - 1);
         };
-
-        _timer = new System.Windows.Forms.Timer { Interval = autohideMs };
-        if (autohideMs > 0)
-        {
-            _timer.Tick += (s, e) => Close();
-            _timer.Start();
-        }
 
         Click += (_, __) => Close();
         KeyDown += (s, e) => { if (e.KeyCode == Keys.Escape) Close(); };
@@ -913,7 +901,6 @@ public sealed class PopupForm : Form
             return;
         }
 
-        StopAutoClose();
         SetSelectionText(suggestion.FullResponse, focus: true);
         SetRespondStatus("Svaret har lagts in nedan. Redigera eller kopiera innan du skickar.");
         UpdateMessage("Ett utkast till svar har lagts in nedan.");
@@ -1008,24 +995,6 @@ public sealed class PopupForm : Form
         _confirmationCompletion = null;
     }
 
-    public void StopAutoClose()
-    {
-        if (!IsDisposed)
-        {
-            _timer.Stop();
-        }
-    }
-
-    public void RestartAutoClose(int milliseconds)
-    {
-        if (!IsDisposed)
-        {
-            _timer.Stop();
-            _timer.Interval = milliseconds;
-            _timer.Start();
-        }
-    }
-
     public void SetBusyState(bool isBusy)
     {
         if (IsDisposed)
@@ -1062,7 +1031,6 @@ public sealed class PopupForm : Form
     {
         if (disposing)
         {
-            _timer?.Dispose();
             foreach (var menu in _optionMenus)
             {
                 menu.Dispose();

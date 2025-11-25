@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -15,21 +16,25 @@ namespace GlobalTextHelper.Infrastructure.OpenAi
     /// </summary>
     public sealed class OpenAiChatClient : IDisposable
     {
-        private const string AzureApiVersion = "2024-02-15-preview";
+        private const string AzureApiVersion = "2024-12-01-preview";
         private static readonly Uri DefaultBaseUri = new("https://gu-ai-006.openai.azure.com/", UriKind.Absolute);
         private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+        private static readonly JsonSerializerOptions DebugJsonOptions = new(JsonSerializerDefaults.General)
+        {
+            WriteIndented = true
+        };
 
         private readonly HttpClient _httpClient;
         private readonly bool _disposeClient;
         private readonly string _model;
         private readonly string _chatCompletionsPath;
 
-        public OpenAiChatClient(string apiKey, string model = "gpt-4o-mini", HttpClient? httpClient = null, Uri? baseUri = null)
+        public OpenAiChatClient(string apiKey, string model = "gpt-5-mini", HttpClient? httpClient = null, Uri? baseUri = null)
         {
             if (string.IsNullOrWhiteSpace(apiKey))
                 throw new ArgumentException("En OpenAI-API-nyckel måste anges.", nameof(apiKey));
 
-            _model = string.IsNullOrWhiteSpace(model) ? "gpt-4o-mini" : model;
+            _model = string.IsNullOrWhiteSpace(model) ? "gpt-5-mini" : model;
             _chatCompletionsPath = BuildChatCompletionsPath(_model);
 
             if (httpClient is null)
@@ -87,15 +92,20 @@ namespace GlobalTextHelper.Infrastructure.OpenAi
             return new OpenAiChatClient(apiKey, model ?? "gpt-4o-mini", httpClient, baseUri);
         }
 
-        public async Task<string> SendPromptAsync(string prompt, double temperature = 0.7, int? maxOutputTokens = null, CancellationToken cancellationToken = default)
+        public Task<string> SendPromptAsync(string prompt, double temperature = 0.7, CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrWhiteSpace(prompt))
-                throw new ArgumentException("Prompten får inte vara tom.", nameof(prompt));
+                throw new ArgumentException("Prompten f?r inte vara tom.", nameof(prompt));
 
+            return SendPromptAsyncInternal(prompt, temperature, cancellationToken);
+        }
+
+        private async Task<string> SendPromptAsyncInternal(string prompt, double temperature, CancellationToken cancellationToken)
+        {
+            double resolvedTemperature = NormalizeTemperatureForModel(_model, temperature);
             var request = new ChatCompletionRequest(
-                Messages: new[] { new ChatMessage("user", prompt) },
-                Temperature: temperature,
-                MaxTokens: maxOutputTokens);
+                Messages: new[] { new ChatRequestMessage("user", prompt) },
+                Temperature: resolvedTemperature);
 
             using var httpRequest = new HttpRequestMessage(HttpMethod.Post, _chatCompletionsPath)
             {
@@ -104,26 +114,129 @@ namespace GlobalTextHelper.Infrastructure.OpenAi
 
             using HttpResponseMessage response = await _httpClient.SendAsync(httpRequest, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
             string json = await response.Content.ReadAsStringAsync(cancellationToken);
+            LogRawResponse(json);
 
             if (!response.IsSuccessStatusCode)
             {
                 var error = TryDeserialize<OpenAiErrorResponse>(json);
                 string message = error?.Error?.Message ?? $"HTTP {(int)response.StatusCode} {response.ReasonPhrase}";
-                throw new HttpRequestException($"OpenAI-begäran misslyckades: {message}");
+                throw new HttpRequestException($"OpenAI-beg??ran misslyckades: {message}");
             }
 
             var completion = TryDeserialize<ChatCompletionResponse>(json)
-                ?? throw new InvalidOperationException("OpenAI returnerade ett oväntat svar.");
+                ?? throw new InvalidOperationException("OpenAI returnerade ett ov??ntat svar.");
+
+            bool truncatedByLength = completion.Choices?
+                .Any(choice => string.Equals(choice.FinishReason, "length", StringComparison.OrdinalIgnoreCase))
+                ?? false;
 
             string? content = completion.Choices?
                 .OrderBy(choice => choice.Index)
-                .Select(choice => choice.Message?.Content?.Trim())
-                .FirstOrDefault(c => !string.IsNullOrEmpty(c));
+                .Select(choice => ExtractResponseContent(choice.Message))
+                .FirstOrDefault(c => !string.IsNullOrWhiteSpace(c));
 
             if (string.IsNullOrEmpty(content))
-                throw new InvalidOperationException("OpenAI-svaret innehöll inget meddelandeinnehåll.");
+            {
+                if (truncatedByLength)
+                {
+                    Console.WriteLine("OpenAI response was truncated because it hit the max token limit.");
+                    LogRawResponse(json);
+                    throw new InvalidOperationException("OpenAI-svaret avbr�ts innan det hann bli klart. F�rs�k igen senare.");
+                }
+
+                Console.WriteLine("OpenAI response missing message content; dumping payload for inspection.");
+                LogRawResponse(json);
+                throw new InvalidOperationException("OpenAI-svaret inneh??ll inget meddelandeinneh??ll.");
+            }
 
             return content;
+        }
+
+        private static string? ExtractResponseContent(ChatResponseMessage? message)
+        {
+            if (message is null)
+                return null;
+
+            string? normalized = NormalizeMessageContent(message.Content);
+            return string.IsNullOrWhiteSpace(normalized) ? null : normalized.Trim();
+        }
+
+        private static string? NormalizeMessageContent(JsonElement content)
+        {
+            switch (content.ValueKind)
+            {
+                case JsonValueKind.String:
+                    return content.GetString();
+                case JsonValueKind.Array:
+                    List<string>? segments = null;
+                    foreach (JsonElement item in content.EnumerateArray())
+                    {
+                        string? text = NormalizeMessageContent(item);
+                        if (!string.IsNullOrWhiteSpace(text))
+                        {
+                            segments ??= new List<string>();
+                            segments.Add(text.Trim());
+                        }
+                    }
+
+                    return segments is null ? null : string.Join("\n", segments);
+                case JsonValueKind.Object:
+                    return ExtractTextFromObject(content);
+                case JsonValueKind.Number:
+                case JsonValueKind.True:
+                case JsonValueKind.False:
+                    return content.GetRawText();
+                case JsonValueKind.Undefined:
+                case JsonValueKind.Null:
+                default:
+                    return null;
+            }
+        }
+
+        private static string? ExtractTextFromObject(JsonElement element)
+        {
+            if (element.TryGetProperty("text", out JsonElement textElement))
+            {
+                string? text = textElement.GetString();
+                if (!string.IsNullOrWhiteSpace(text))
+                    return text;
+            }
+
+            if (element.TryGetProperty("content", out JsonElement nestedContent))
+            {
+                string? nestedText = NormalizeMessageContent(nestedContent);
+                if (!string.IsNullOrWhiteSpace(nestedText))
+                    return nestedText;
+            }
+
+            if (element.TryGetProperty("value", out JsonElement valueElement))
+            {
+                string? valueText = NormalizeMessageContent(valueElement);
+                if (!string.IsNullOrWhiteSpace(valueText))
+                    return valueText;
+            }
+
+            string raw = element.GetRawText();
+            return string.IsNullOrWhiteSpace(raw) ? null : raw;
+        }
+
+        private static void LogRawResponse(string json)
+        {
+            if (string.IsNullOrWhiteSpace(json))
+                return;
+
+            try
+            {
+                using JsonDocument document = JsonDocument.Parse(json);
+                string pretty = JsonSerializer.Serialize(document.RootElement, DebugJsonOptions);
+                Console.WriteLine("OpenAI raw response (prettified):");
+                Console.WriteLine(pretty);
+            }
+            catch (JsonException)
+            {
+                Console.WriteLine("OpenAI raw response (raw):");
+                Console.WriteLine(json);
+            }
         }
 
         private static T? TryDeserialize<T>(string json)
@@ -146,6 +259,25 @@ namespace GlobalTextHelper.Infrastructure.OpenAi
             }
         }
 
+        private static double NormalizeTemperatureForModel(string model, double requestedTemperature)
+        {
+            if (RequiresDefaultTemperature(model))
+            {
+                return 1.0;
+            }
+
+            return requestedTemperature;
+        }
+
+        private static bool RequiresDefaultTemperature(string model)
+        {
+            if (string.IsNullOrWhiteSpace(model))
+                return false;
+
+            // Azure GPT-5 deployments currently reject non-default temperature values.
+            return model.StartsWith("gpt-5", StringComparison.OrdinalIgnoreCase);
+        }
+
         private static string BuildChatCompletionsPath(string deploymentName)
         {
             string safeDeploymentName = Uri.EscapeDataString(deploymentName);
@@ -153,11 +285,10 @@ namespace GlobalTextHelper.Infrastructure.OpenAi
         }
 
         private sealed record ChatCompletionRequest(
-            [property: JsonPropertyName("messages")] ChatMessage[] Messages,
-            [property: JsonPropertyName("temperature")] double Temperature,
-            [property: JsonPropertyName("max_tokens")] int? MaxTokens);
+            [property: JsonPropertyName("messages")] ChatRequestMessage[] Messages,
+            [property: JsonPropertyName("temperature")] double Temperature);
 
-        private sealed record ChatMessage(
+        private sealed record ChatRequestMessage(
             [property: JsonPropertyName("role")] string Role,
             [property: JsonPropertyName("content")] string Content);
 
@@ -166,7 +297,12 @@ namespace GlobalTextHelper.Infrastructure.OpenAi
 
         private sealed record ChatChoice(
             [property: JsonPropertyName("index")] int Index,
-            [property: JsonPropertyName("message")] ChatMessage? Message);
+            [property: JsonPropertyName("message")] ChatResponseMessage? Message,
+            [property: JsonPropertyName("finish_reason")] string? FinishReason);
+
+        private sealed record ChatResponseMessage(
+            [property: JsonPropertyName("role")] string Role,
+            [property: JsonPropertyName("content")] JsonElement Content);
 
         private sealed record OpenAiErrorResponse(
             [property: JsonPropertyName("error")] OpenAiError? Error);
@@ -176,3 +312,9 @@ namespace GlobalTextHelper.Infrastructure.OpenAi
             [property: JsonPropertyName("type")] string? Type);
     }
 }
+
+
+
+
+
+
