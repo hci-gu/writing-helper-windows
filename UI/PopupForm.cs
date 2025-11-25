@@ -15,6 +15,9 @@ public sealed class PopupForm : Form
     private readonly TextBox _selectionTextBox;
     private readonly TableLayoutPanel _rewriteContainer;
     private readonly FlowLayoutPanel _modeSelectionPanel;
+    private readonly Button _simplifyButton;
+    private readonly Button _rewriteButton;
+    private readonly Button _respondButton;
     private readonly FlowLayoutPanel _buttonPanel;
     private readonly TableLayoutPanel _respondContainer;
     private readonly FlowLayoutPanel _respondPanel;
@@ -26,6 +29,7 @@ public sealed class PopupForm : Form
     private readonly Button _closeButton;
     private readonly List<ContextMenuStrip> _optionMenus = new();
     private readonly List<PopupActionDescriptor> _rewriteActionDescriptors = new();
+    private PopupActionDescriptor? _simplifyActionDescriptor;
     private readonly string _defaultMessage;
     private PopupViewMode _currentView = PopupViewMode.ModeSelection;
     private TaskCompletionSource<ReplacementPreviewResult>? _confirmationCompletion;
@@ -189,15 +193,22 @@ public sealed class PopupForm : Form
             Visible = true
         };
 
-        var rewriteButton = ActionButtonFactory.CreatePrimaryActionButton("Skriv om markerad text");
-        rewriteButton.Click += (_, __) => ShowRewriteActions();
+        _simplifyButton = ActionButtonFactory.CreatePrimaryActionButton("Förenkla");
+        _simplifyButton.Visible = false;
+        _simplifyButton.Click += async (_, __) => await InvokeSimplifyActionAsync();
 
-        var respondButton = ActionButtonFactory.CreateSecondaryActionButton("Svara på markerad text");
+        _rewriteButton = ActionButtonFactory.CreatePrimaryActionButton("Skriv om");
+        _rewriteButton.Margin = new Padding(8, 0, 0, 0);
+        _rewriteButton.Click += (_, __) => ShowRewriteActions();
+
+        var respondButton = ActionButtonFactory.CreateSecondaryActionButton("Svara på");
         respondButton.Margin = new Padding(8, 0, 0, 0);
         respondButton.Click += async (_, __) => await BeginRespondFlowAsync();
+        _respondButton = respondButton;
 
-        _modeSelectionPanel.Controls.Add(rewriteButton);
-        _modeSelectionPanel.Controls.Add(respondButton);
+        _modeSelectionPanel.Controls.Add(_simplifyButton);
+        _modeSelectionPanel.Controls.Add(_rewriteButton);
+        _modeSelectionPanel.Controls.Add(_respondButton);
 
         _buttonPanel = new FlowLayoutPanel
         {
@@ -410,9 +421,42 @@ public sealed class PopupForm : Form
     {
         ClearActionButtons();
         var descriptors = actions?.ToList() ?? new List<PopupActionDescriptor>();
+        _simplifyActionDescriptor = descriptors.FirstOrDefault(IsSimplifyDescriptor);
+        UpdateSimplifyButton(_simplifyActionDescriptor);
+
         _rewriteActionDescriptors.Clear();
-        _rewriteActionDescriptors.AddRange(descriptors);
+        _rewriteActionDescriptors.AddRange(descriptors.Where(d => !IsSimplifyDescriptor(d)));
+
+        _rewriteButton.Visible = _rewriteActionDescriptors.Count > 0;
+        UpdateModeSelectionButtonSpacing();
         ShowModeSelection();
+    }
+
+    private void UpdateSimplifyButton(PopupActionDescriptor? descriptor)
+    {
+        if (descriptor is null)
+        {
+            _simplifyButton.Visible = false;
+            return;
+        }
+
+        _simplifyButton.Text = descriptor.Label;
+        _simplifyButton.Visible = true;
+    }
+
+    private void UpdateModeSelectionButtonSpacing()
+    {
+        var visibleButtons = _modeSelectionPanel.Controls
+            .Cast<Control>()
+            .Where(control => control.Visible)
+            .ToList();
+
+        for (int i = 0; i < visibleButtons.Count; i++)
+        {
+            visibleButtons[i].Margin = i == 0
+                ? new Padding(0)
+                : new Padding(8, 0, 0, 0);
+        }
     }
 
     private void ShowModeSelection()
@@ -425,6 +469,16 @@ public sealed class PopupForm : Form
         _currentView = PopupViewMode.ModeSelection;
         UpdateMessage(_defaultMessage);
         UpdateActionAreaVisibility();
+    }
+
+    private async Task InvokeSimplifyActionAsync()
+    {
+        if (_simplifyActionDescriptor is null)
+        {
+            return;
+        }
+
+        await RaiseActionInvokedAsync(_simplifyActionDescriptor.Id, null);
     }
 
     private void ShowRewriteActions()
@@ -463,6 +517,11 @@ public sealed class PopupForm : Form
     private static bool IsRewriteDescriptor(PopupActionDescriptor descriptor)
     {
         return string.Equals(descriptor.Id, "rewrite", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsSimplifyDescriptor(PopupActionDescriptor descriptor)
+    {
+        return string.Equals(descriptor.Id, "simplify", StringComparison.OrdinalIgnoreCase);
     }
 
     private Control BuildRewriteOptionLayout(PopupActionDescriptor descriptor)
@@ -893,6 +952,7 @@ public sealed class PopupForm : Form
         UpdateMessage("Granska eller justera den uppdaterade texten nedan.");
         SetSelectionText(replacementText);
 
+        _currentView = PopupViewMode.RewriteActions;
         _buttonPanel.Controls.Clear();
         _buttonPanel.Enabled = true;
         _buttonPanel.FlowDirection = FlowDirection.LeftToRight;

@@ -28,7 +28,7 @@ public sealed class SimplifySelectionAction : ITextAction
     }
 
     public string Id => "simplify";
-    public string DisplayName => "Förenkla och ersätt";
+    public string DisplayName => "Förenkla";
     public bool IsPrimaryAction => true;
     public IReadOnlyList<TextActionOption> Options { get; } = Array.Empty<TextActionOption>();
 
