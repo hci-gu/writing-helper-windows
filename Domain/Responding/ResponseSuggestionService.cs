@@ -17,7 +17,9 @@ public sealed class ResponseSuggestionService
 
     private const string Instructions =
         "You help draft short replies to a highlighted message. Given the user's input, " +
-        "produce three response options:\n" +
+        "write every snippet and response in the same language as the input message " +
+        "(e.g., Swedish emails should get Swedish snippets and replies; do not translate to English). " +
+        "Then produce three response options:\n" +
         "1. Affirmative response (agree/accept).\n" +
         "2. Negative response (decline).\n" +
         "3. Clarification response (ask a question or request detail).\n\n" +
