@@ -74,7 +74,7 @@ internal sealed class AppHost : ApplicationContext
 
     private void OnSelectionCaptured(object? sender, SelectionCapturedEventArgs e)
     {
-        if (_isEditorOpen)
+        if (_isEditorOpen || !_userSettings.ShowPopupOnCopy)
         {
             return;
         }
@@ -113,12 +113,14 @@ internal sealed class AppHost : ApplicationContext
     {
         using var dialog = new SettingsForm
         {
-            PromptPreamble = _userSettings.PromptPreamble
+            PromptPreamble = _userSettings.PromptPreamble,
+            ShowPopupOnCopy = _userSettings.ShowPopupOnCopy
         };
 
         if (dialog.ShowDialog(_mainForm) == DialogResult.OK)
         {
             _userSettings.PromptPreamble = dialog.PromptPreamble;
+            _userSettings.ShowPopupOnCopy = dialog.ShowPopupOnCopy;
             _userSettings.Save();
             _openAiClientFactory.InvalidateClient();
         }

@@ -7,6 +7,7 @@ namespace GlobalTextHelper.UI;
 public sealed class SettingsForm : Form
 {
     private readonly TextBox _promptPreambleTextBox;
+    private readonly CheckBox _popupOnCopyCheckBox;
 
     public SettingsForm()
     {
@@ -24,13 +25,14 @@ public sealed class SettingsForm : Form
         var layout = new TableLayoutPanel
         {
             ColumnCount = 1,
-            RowCount = 5,
+            RowCount = 6,
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             Dock = DockStyle.Fill,
         };
 
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -79,6 +81,17 @@ public sealed class SettingsForm : Form
             Margin = new Padding(0, 4, 0, 0)
         };
 
+        _popupOnCopyCheckBox = new CheckBox
+        {
+            AutoSize = true,
+            Checked = true,
+            Text = "Visa popup när jag kopierar text",
+            Font = Theme.BodyFont,
+            ForeColor = Theme.TextColor,
+            BackColor = Theme.BackgroundColor,
+            Margin = new Padding(0, Theme.PaddingLarge, 0, 0)
+        };
+
         var buttonPanel = new FlowLayoutPanel
         {
             FlowDirection = FlowDirection.RightToLeft,
@@ -104,10 +117,11 @@ public sealed class SettingsForm : Form
         buttonPanel.Controls.Add(cancelButton);
 
         layout.Controls.Add(instructions, 0, 0);
-        layout.Controls.Add(promptPreambleLabel, 0, 1);
-        layout.Controls.Add(_promptPreambleTextBox, 0, 2);
-        layout.Controls.Add(promptInstructions, 0, 3);
-        layout.Controls.Add(buttonPanel, 0, 4);
+        layout.Controls.Add(_popupOnCopyCheckBox, 0, 1);
+        layout.Controls.Add(promptPreambleLabel, 0, 2);
+        layout.Controls.Add(_promptPreambleTextBox, 0, 3);
+        layout.Controls.Add(promptInstructions, 0, 4);
+        layout.Controls.Add(buttonPanel, 0, 5);
 
         Controls.Add(layout);
     }
@@ -116,6 +130,12 @@ public sealed class SettingsForm : Form
     {
         get => string.IsNullOrWhiteSpace(_promptPreambleTextBox.Text) ? null : _promptPreambleTextBox.Text.Trim();
         set => _promptPreambleTextBox.Text = value ?? string.Empty;
+    }
+
+    public bool ShowPopupOnCopy
+    {
+        get => _popupOnCopyCheckBox.Checked;
+        set => _popupOnCopyCheckBox.Checked = value;
     }
 
     private void OnSaveClicked(object? sender, EventArgs e)

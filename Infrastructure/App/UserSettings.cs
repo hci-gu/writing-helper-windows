@@ -15,6 +15,8 @@ internal sealed class UserSettings
 
     public string? PromptPreamble { get; set; }
 
+    public bool ShowPopupOnCopy { get; set; } = true;
+
     public static UserSettings Load()
     {
         try
