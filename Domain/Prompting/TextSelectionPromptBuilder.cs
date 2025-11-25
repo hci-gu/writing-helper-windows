@@ -71,21 +71,21 @@ namespace GlobalTextHelper.Domain.Prompting
         /// <param name="client">The OpenAI chat client used to issue the request.</param>
         /// <param name="selectedText">The highlighted text to simplify.</param>
         /// <param name="temperature">Generation temperature to use for the request.</param>
-        /// <param name="maxOutputTokens">Optional token cap for the model's response.</param>
+        /// <param name="maxCompletionTokens">Optional token cap for the model's response.</param>
         /// <param name="cancellationToken">Cancellation token to observe during the request.</param>
         /// <returns>The simplified version of <paramref name="selectedText"/>.</returns>
         public Task<string> SimplifySelectionAsync(
             OpenAiChatClient client,
             string selectedText,
             double temperature = 0.2,
-            int? maxOutputTokens = 300,
+            int? maxCompletionTokens = 300,
             CancellationToken cancellationToken = default)
         {
             if (client is null)
                 throw new ArgumentNullException(nameof(client));
 
             string prompt = BuildSimplificationPrompt(selectedText);
-            return client.SendPromptAsync(prompt, temperature, maxOutputTokens, cancellationToken);
+            return client.SendPromptAsync(prompt, temperature, maxCompletionTokens, cancellationToken);
         }
 
         /// <summary>
@@ -133,7 +133,7 @@ namespace GlobalTextHelper.Domain.Prompting
         /// <param name="selectedText">The highlighted text to rewrite.</param>
         /// <param name="style">The rewrite style to apply.</param>
         /// <param name="temperature">Generation temperature to use for the request.</param>
-        /// <param name="maxOutputTokens">Optional token cap for the model's response.</param>
+        /// <param name="maxCompletionTokens">Optional token cap for the model's response.</param>
         /// <param name="cancellationToken">Cancellation token to observe during the request.</param>
         /// <returns>The rewritten version of <paramref name="selectedText"/>.</returns>
         public Task<string> RewriteSelectionAsync(
@@ -141,14 +141,14 @@ namespace GlobalTextHelper.Domain.Prompting
             string selectedText,
             string style,
             double temperature = 0.3,
-            int? maxOutputTokens = 400,
+            int? maxCompletionTokens = 400,
             CancellationToken cancellationToken = default)
         {
             if (client is null)
                 throw new ArgumentNullException(nameof(client));
 
             string prompt = BuildRewritePrompt(selectedText, style);
-            return client.SendPromptAsync(prompt, temperature, maxOutputTokens, cancellationToken);
+            return client.SendPromptAsync(prompt, temperature, maxCompletionTokens, cancellationToken);
         }
 
         private string ApplyPromptPreamble(string promptBody)
