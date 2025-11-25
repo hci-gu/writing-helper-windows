@@ -173,7 +173,7 @@ public sealed class PopupForm : Form
             MaximumSize = new Size(Theme.PopupWidth, 600),
             Size = new Size(Theme.PopupWidth, 100),
             Margin = new Padding(0, 12, 0, 0),
-            Text = selectionText ?? string.Empty,
+            Text = NormalizeLineEndings(selectionText ?? string.Empty),
             AcceptsReturn = true,
             AcceptsTab = true,
             Dock = DockStyle.Fill
@@ -730,11 +730,18 @@ public sealed class PopupForm : Form
             return;
         }
 
-        _selectionTextBox.Text = text ?? string.Empty;
+        _selectionTextBox.Text = NormalizeLineEndings(text);
         _selectionTextBox.SelectionStart = _selectionTextBox.TextLength;
         _selectionTextBox.SelectionLength = 0;
         _selectionTextBox.ScrollToCaret();
         AdjustSelectionTextBoxHeight();
+    }
+
+    private static string NormalizeLineEndings(string text)
+    {
+        return string.IsNullOrEmpty(text)
+            ? string.Empty
+            : text.ReplaceLineEndings(Environment.NewLine);
     }
 
     private void AdjustSelectionTextBoxHeight()
