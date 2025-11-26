@@ -19,17 +19,18 @@ public sealed class ResponseSuggestionService
         "You help draft short replies to a highlighted message. Given the user's input, " +
         "write every snippet and response in the same language as the input message " +
         "(e.g., Swedish emails should get Swedish snippets and replies; do not translate to English). " +
-        "Then produce three response options:\n" +
-        "1. Affirmative response (agree/accept).\n" +
-        "2. Negative response (decline).\n" +
-        "3. Clarification response (ask a question or request detail).\n\n" +
-        "For each option provide:\n" +
-        "- snippet: <= 12 words summarizing the response.\n" +
-        "- response: a complete message the user can send.\n\n" +
+        "Generate a handful of options per tone: always include at least one affirmative, one negative, " +
+        "and one clarification response. When the message offers multiple ways to say yes (for example, " +
+        "several meeting times or options to confirm), return 2-3 distinct affirmative responses that cover " +
+        "the main choices. Include extra variations for the other tones only when they add meaningful choice. " +
+        "Keep snippets under 12 words.\n\n" +
         "Return valid JSON with this structure:\n" +
-        "{\n  \"affirmative\": { \"snippet\": \"...\", \"response\": \"...\" },\n" +
-        "  \"negative\": { \"snippet\": \"...\", \"response\": \"...\" },\n" +
-        "  \"clarification\": { \"snippet\": \"...\", \"response\": \"...\" }\n}";
+        "{\n" +
+        "  \"affirmative\": [ { \"snippet\": \"...\", \"response\": \"...\" }, ... ],\n" +
+        "  \"negative\": [ { \"snippet\": \"...\", \"response\": \"...\" }, ... ],\n" +
+        "  \"clarification\": [ { \"snippet\": \"...\", \"response\": \"...\" }, ... ]\n" +
+        "}\n" +
+        "Always return arrays (even if there is only one option in a tone).";
 
     private readonly Func<string?> _promptPreambleProvider;
     private readonly IOpenAiClientFactory _clientFactory;
@@ -112,19 +113,62 @@ public sealed class ResponseSuggestionService
         using (document)
         {
             var root = document.RootElement;
-            var suggestions = new List<ResponseSuggestion>(capacity: 3);
-            suggestions.Add(ParseSuggestion(ResponseTone.Affirmative, root, "affirmative"));
-            suggestions.Add(ParseSuggestion(ResponseTone.Negative, root, "negative"));
-            suggestions.Add(ParseSuggestion(ResponseTone.Clarification, root, "clarification"));
-            return suggestions.Where(s => !string.IsNullOrWhiteSpace(s.FullResponse)).ToList();
+            var suggestions = new List<ResponseSuggestion>();
+            suggestions.AddRange(ParseSuggestionGroup(ResponseTone.Affirmative, root, "affirmative"));
+            suggestions.AddRange(ParseSuggestionGroup(ResponseTone.Negative, root, "negative"));
+            suggestions.AddRange(ParseSuggestionGroup(ResponseTone.Clarification, root, "clarification"));
+
+            var filtered = suggestions.Where(s => !string.IsNullOrWhiteSpace(s.FullResponse)).ToList();
+            if (filtered.Count == 0)
+            {
+                throw new InvalidOperationException("OpenAI response did not include any suggestions.");
+            }
+
+            return filtered;
         }
     }
 
-    private static ResponseSuggestion ParseSuggestion(ResponseTone tone, JsonElement root, string propertyName)
+    private static IEnumerable<ResponseSuggestion> ParseSuggestionGroup(
+        ResponseTone tone,
+        JsonElement root,
+        string propertyName)
     {
         if (!root.TryGetProperty(propertyName, out var element))
             throw new InvalidOperationException($"OpenAI response did not include '{propertyName}'.");
 
+        if (element.ValueKind == JsonValueKind.Array)
+        {
+            int index = 0;
+            foreach (var child in element.EnumerateArray())
+            {
+                if (child.ValueKind != JsonValueKind.Object)
+                {
+                    throw new InvalidOperationException($"OpenAI response '{propertyName}[{index}]' must be an object.");
+                }
+
+                yield return ParseSuggestion(tone, child, $"{propertyName}[{index}]");
+                index++;
+            }
+
+            if (index == 0)
+            {
+                throw new InvalidOperationException($"OpenAI response '{propertyName}' array was empty.");
+            }
+
+            yield break;
+        }
+
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            yield return ParseSuggestion(tone, element, propertyName);
+            yield break;
+        }
+
+        throw new InvalidOperationException($"OpenAI response '{propertyName}' must be an object or array.");
+    }
+
+    private static ResponseSuggestion ParseSuggestion(ResponseTone tone, JsonElement element, string propertyName)
+    {
         string snippet = element.TryGetProperty("snippet", out var snippetElement)
             ? snippetElement.GetString() ?? string.Empty
             : string.Empty;

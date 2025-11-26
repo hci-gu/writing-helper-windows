@@ -881,7 +881,18 @@ public sealed class PopupForm : Form
             snippet = snippet[..67].TrimEnd() + "…";
         }
 
-        return snippet;
+        var prefix = GetTonePrefix(suggestion.Tone);
+        return string.IsNullOrWhiteSpace(prefix) ? snippet : $"{prefix} {snippet}";
+    }
+
+    private static string GetTonePrefix(ResponseTone tone)
+    {
+        return tone switch
+        {
+            ResponseTone.Affirmative => "✓",
+            ResponseTone.Negative => "✕",
+            _ => "?"
+        };
     }
 
     private static string GetDefaultSnippet(ResponseTone tone)
