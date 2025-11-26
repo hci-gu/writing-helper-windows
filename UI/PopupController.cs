@@ -175,6 +175,11 @@ public sealed class PopupController : IDisposable
                 return;
             }
 
+            if (previewResult == ReplacementPreviewResult.Dismissed)
+            {
+                return;
+            }
+
             popup.ClearActionButtons();
 
             var replacementText = string.IsNullOrWhiteSpace(popup.GetSelectionText())

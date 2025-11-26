@@ -980,9 +980,9 @@ public sealed class PopupForm : Form
         return _confirmationCompletion.Task;
     }
 
-    private void CancelPendingConfirmation()
+    private void CancelPendingConfirmation(ReplacementPreviewResult result = ReplacementPreviewResult.Dismissed)
     {
-        CompleteConfirmation(ReplacementPreviewResult.Cancel);
+        CompleteConfirmation(result);
     }
 
     private void CompleteConfirmation(ReplacementPreviewResult result)
@@ -1087,5 +1087,6 @@ public enum ReplacementPreviewResult
 {
     Accept,
     CopyToClipboard,
-    Cancel
+    Cancel,
+    Dismissed
 }
