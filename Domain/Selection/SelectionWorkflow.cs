@@ -9,7 +9,7 @@ public sealed class SelectionWorkflow
     private DateTime _lastShownAt;
     private string? _activeSelectionText;
 
-    public bool TryHandleSelection(SelectionCapturedEventArgs args, out SelectionContext? context)
+    public bool TryHandleSelection(SelectionCapturedEventArgs args, int minimumLength, out SelectionContext? context)
     {
         context = null;
         if (args is null)
@@ -19,6 +19,11 @@ public sealed class SelectionWorkflow
 
         var normalized = Normalize(args.Text);
         if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return false;
+        }
+
+        if (minimumLength > 0 && normalized.Length < minimumLength)
         {
             return false;
         }

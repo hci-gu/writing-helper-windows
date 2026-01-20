@@ -98,7 +98,7 @@ internal sealed class AppHost : ApplicationContext
             return;
         }
 
-        if (!_workflow.TryHandleSelection(e, out var context) || context is null)
+        if (!_workflow.TryHandleSelection(e, _userSettings.MinimumPopupTextLength, out var context) || context is null)
         {
             return;
         }
@@ -134,6 +134,7 @@ internal sealed class AppHost : ApplicationContext
         {
             PromptPreamble = _userSettings.PromptPreamble,
             ShowPopupOnCopy = _userSettings.ShowPopupOnCopy,
+            MinimumPopupTextLength = _userSettings.MinimumPopupTextLength,
             SelectedModel = _userSettings.OpenAiModel
         };
 
@@ -141,6 +142,7 @@ internal sealed class AppHost : ApplicationContext
         {
             _userSettings.PromptPreamble = dialog.PromptPreamble;
             _userSettings.ShowPopupOnCopy = dialog.ShowPopupOnCopy;
+            _userSettings.MinimumPopupTextLength = dialog.MinimumPopupTextLength;
             _userSettings.OpenAiModel = dialog.SelectedModel ?? OpenAiChatClient.DefaultModel;
             _userSettings.Save();
             _openAiClientFactory.InvalidateClient();

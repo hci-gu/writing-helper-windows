@@ -20,6 +20,8 @@ internal sealed class UserSettings
 
     public bool ShowPopupOnCopy { get; set; } = true;
 
+    public int MinimumPopupTextLength { get; set; } = 50;
+
     public string? AnalyticsUserId { get; set; }
 
     public static UserSettings Load()
