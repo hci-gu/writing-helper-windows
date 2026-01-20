@@ -17,6 +17,7 @@ public sealed class PopupForm : Form
     private readonly Button _simplifyButton;
     private readonly Button _rewriteButton;
     private readonly Button _respondButton;
+    private readonly Button _snoozeButton;
     private readonly FlowLayoutPanel _buttonPanel;
     private readonly TableLayoutPanel _respondContainer;
     private readonly FlowLayoutPanel _respondPanel;
@@ -201,9 +202,18 @@ public sealed class PopupForm : Form
         respondButton.Click += async (_, __) => await BeginRespondFlowAsync();
         _respondButton = respondButton;
 
+        _snoozeButton = ActionButtonFactory.CreateSecondaryActionButton("Pausa i 1 timme");
+        _snoozeButton.Margin = new Padding(8, 0, 0, 0);
+        _snoozeButton.Click += (_, __) =>
+        {
+            SnoozeRequested?.Invoke(this, EventArgs.Empty);
+            Close();
+        };
+
         _modeSelectionPanel.Controls.Add(_simplifyButton);
         _modeSelectionPanel.Controls.Add(_rewriteButton);
         _modeSelectionPanel.Controls.Add(_respondButton);
+        _modeSelectionPanel.Controls.Add(_snoozeButton);
 
         _buttonPanel = new FlowLayoutPanel
         {
@@ -359,6 +369,7 @@ public sealed class PopupForm : Form
     public event Func<PopupActionInvokedEventArgs, Task>? ActionInvoked;
     public event Func<string, Task>? RespondRequested;
     public event EventHandler<RespondSuggestionAppliedEventArgs>? RespondSuggestionApplied;
+    public event EventHandler? SnoozeRequested;
 
     protected override bool ShowWithoutActivation => true;
 

@@ -39,6 +39,7 @@ public sealed class PopupController : IDisposable
     }
 
     public event EventHandler? PopupClosed;
+    public event EventHandler? SnoozeRequested;
 
     public void ShowForSelection(SelectionContext context)
     {
@@ -54,6 +55,7 @@ public sealed class PopupController : IDisposable
         popup.ActionInvoked += HandleActionInvokedAsync;
         popup.RespondRequested += HandleRespondRequestedAsync;
         popup.RespondSuggestionApplied += HandleRespondSuggestionApplied;
+        popup.SnoozeRequested += (_, __) => SnoozeRequested?.Invoke(this, EventArgs.Empty);
         popup.FormClosed += (_, __) =>
         {
             if (ReferenceEquals(_activePopup, popup))

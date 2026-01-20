@@ -65,6 +65,7 @@ internal sealed class AppHost : ApplicationContext
             _responseSuggestionService,
             _analytics);
         _popupController.PopupClosed += (_, __) => _workflow.MarkSelectionHandled();
+        _popupController.SnoozeRequested += OnPopupSnoozeRequested;
 
         _selectionWatcher = new SelectionWatcher(_clipboardService, _logger);
         _selectionWatcher.SelectionCaptured += OnSelectionCaptured;
@@ -98,6 +99,11 @@ internal sealed class AppHost : ApplicationContext
             return;
         }
 
+        if (IsPopupSnoozed())
+        {
+            return;
+        }
+
         if (!_workflow.TryHandleSelection(e, _userSettings.MinimumPopupTextLength, out var context) || context is null)
         {
             return;
@@ -115,6 +121,7 @@ internal sealed class AppHost : ApplicationContext
             _popupController.Dispose();
             _mainForm.SettingsRequested -= OnSettingsRequested;
             _mainForm.EditorRequested -= OnEditorRequested;
+            _popupController.SnoozeRequested -= OnPopupSnoozeRequested;
             _mainForm.Dispose();
         }
 
@@ -135,6 +142,7 @@ internal sealed class AppHost : ApplicationContext
             PromptPreamble = _userSettings.PromptPreamble,
             ShowPopupOnCopy = _userSettings.ShowPopupOnCopy,
             MinimumPopupTextLength = _userSettings.MinimumPopupTextLength,
+            SnoozeUntilUtc = _userSettings.SnoozeUntilUtc,
             SelectedModel = _userSettings.OpenAiModel
         };
 
@@ -143,6 +151,7 @@ internal sealed class AppHost : ApplicationContext
             _userSettings.PromptPreamble = dialog.PromptPreamble;
             _userSettings.ShowPopupOnCopy = dialog.ShowPopupOnCopy;
             _userSettings.MinimumPopupTextLength = dialog.MinimumPopupTextLength;
+            _userSettings.SnoozeUntilUtc = dialog.SnoozeUntilUtc;
             _userSettings.OpenAiModel = dialog.SelectedModel ?? OpenAiChatClient.DefaultModel;
             _userSettings.Save();
             _openAiClientFactory.InvalidateClient();
@@ -163,5 +172,44 @@ internal sealed class AppHost : ApplicationContext
         {
             _isEditorOpen = false;
         }
+    }
+
+    private void OnPopupSnoozeRequested(object? sender, EventArgs e)
+    {
+        _userSettings.SnoozeUntilUtc = DateTime.UtcNow.AddHours(1);
+        try
+        {
+            _userSettings.Save();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError("Failed to persist snooze state", ex);
+        }
+    }
+
+    private bool IsPopupSnoozed()
+    {
+        var snoozeUntil = _userSettings.SnoozeUntilUtc;
+        if (!snoozeUntil.HasValue)
+        {
+            return false;
+        }
+
+        if (snoozeUntil.Value > DateTime.UtcNow)
+        {
+            return true;
+        }
+
+        _userSettings.SnoozeUntilUtc = null;
+        try
+        {
+            _userSettings.Save();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError("Failed to clear expired snooze state", ex);
+        }
+
+        return false;
     }
 }

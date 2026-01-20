@@ -22,6 +22,8 @@ internal sealed class UserSettings
 
     public int MinimumPopupTextLength { get; set; } = 50;
 
+    public DateTime? SnoozeUntilUtc { get; set; }
+
     public string? AnalyticsUserId { get; set; }
 
     public static UserSettings Load()
