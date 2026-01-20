@@ -31,6 +31,14 @@ public sealed class MainForm : Form
             Text = "GlobalTextHelper",
             ContextMenuStrip = _menu
         };
+
+        _trayIcon.MouseClick += (_, args) =>
+        {
+            if (args.Button == MouseButtons.Left)
+            {
+                SettingsRequested?.Invoke(this, EventArgs.Empty);
+            }
+        };
     }
 
     public event EventHandler? ExitRequested;
